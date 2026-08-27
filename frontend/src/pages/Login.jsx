@@ -22,7 +22,7 @@ export default function Login() {
     <div className="min-h-screen mv-noise flex">
       {/* Left brand panel */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 relative overflow-hidden p-12 border-r border-mv-border bg-gradient-to-br from-white via-blue-50/50 to-white">
-        <img src="https://static.prod-images.emergentagent.com/jobs/0f2d425a-ed8e-40a5-8748-bcd52a9e0e9d/images/3f32fb3cbe9b32e4755623dadd72d81648625871aac2c7eec40f6f3dde14bde4.jpeg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-90" />
+        
         <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-transparent to-white/50" />
         <div className="relative flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
