@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, LayoutGrid, List, Plus, Car, MapPin, User, Battery } from "lucide-react";
+import { Battery, Car, LayoutGrid, List, MapPin, Pencil, Plus, Search, Trash, User } from "lucide-react";;
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useApp, CITIES } from "../context/AppContext";
@@ -62,7 +62,7 @@ export default function Fleet() {
   return (
     <div>
       <PageHeader title="Fleet" subtitle="Vehicle control system for your fleet">
-        {canEdit && <PrimaryBtn onClick={() => setShowAdd(true)} data-testid="add-vehicle-btn"><Plus className="w-4 h-4" /> Add Vehicle</PrimaryBtn>}
+        {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowAdd(true)} data-testid="add-vehicle-btn"><Plus className="w-4 h-4" /> Add Vehicle</PrimaryBtn>}
       </PageHeader>
 
       {/* Controls */}
@@ -104,7 +104,7 @@ export default function Fleet() {
 
       {items && items.length === 0 && (
         <EmptyState icon={Car} title="Your fleet is waiting. 🚘" subtitle="No vehicles match these filters. Add your first vehicle to get started."
-          action={canEdit && <PrimaryBtn onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Add Vehicle</PrimaryBtn>} />
+          action={user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Add Vehicle</PrimaryBtn>} />
       )}
 
       {items && items.length > 0 && view === "grid" && (
@@ -196,6 +196,8 @@ export default function Fleet() {
 }
 
 function EditVehicleDialog({ vehicle, open, setOpen, onDone }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [form, setForm] = useState(vehicle || {});
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -216,12 +218,12 @@ function EditVehicleDialog({ vehicle, open, setOpen, onDone }) {
           <Field label="Vehicle Number"><TextInput data-testid="veh-number" value={form.vehicle_number || ""} onChange={(e) => set("vehicle_number", e.target.value)} /></Field>
           <Field label="Registration"><TextInput data-testid="veh-reg" value={form.registration_number || ""} onChange={(e) => set("registration_number", e.target.value)} /></Field>
           <Field label="Model"><TextInput value={form.model || ""} onChange={(e) => set("model", e.target.value)} /></Field>
-          <Field label="City">
+          {isAdmin && (<Field label="City">
             <Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}>
               <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
-          </Field>
+          </Field>)}
           <Field label="Battery Capacity"><TextInput value={form.battery_capacity || ""} onChange={(e) => set("battery_capacity", e.target.value)} /></Field>
           <Field label="Charger"><TextInput value={form.charger || ""} onChange={(e) => set("charger", e.target.value)} /></Field>
         </div>
@@ -234,9 +236,12 @@ function EditVehicleDialog({ vehicle, open, setOpen, onDone }) {
 }
 
 function AddVehicleDialog({ open, setOpen, onDone }) {
-  const [form, setForm] = useState({ vehicle_number: "", registration_number: "", model: "", city: "", battery_percent: 100, battery_capacity: "", charger: "" });
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const defaultCity = isAdmin ? "" : (user?.city || "");
+  const [form, setForm] = useState({ vehicle_number: "", registration_number: "", model: "", city: defaultCity, battery_percent: 100, battery_capacity: "", charger: "" });
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (open) setForm({ vehicle_number: "", registration_number: "", model: "", city: "", battery_percent: 100, battery_capacity: "", charger: "" }); }, [open]);
+  useEffect(() => { if (open) setForm({ vehicle_number: "", registration_number: "", model: "", city: defaultCity, battery_percent: 100, battery_capacity: "", charger: "" }); }, [open, defaultCity]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const save = async () => {
     if (!form.vehicle_number || !form.registration_number) { toast.error("Vehicle number & registration required"); return; }
@@ -252,12 +257,12 @@ function AddVehicleDialog({ open, setOpen, onDone }) {
           <Field label="Vehicle Number"><TextInput data-testid="veh-number" value={form.vehicle_number} onChange={(e) => set("vehicle_number", e.target.value)} placeholder="EV-1050" /></Field>
           <Field label="Registration"><TextInput data-testid="veh-reg" value={form.registration_number} onChange={(e) => set("registration_number", e.target.value)} placeholder="TN 07 AB 1234" /></Field>
           <Field label="Model"><TextInput value={form.model} onChange={(e) => set("model", e.target.value)} /></Field>
-          <Field label="City">
+          {isAdmin && (<Field label="City">
             <Select value={form.city} onValueChange={(v) => set("city", v)}>
               <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
-          </Field>
+          </Field>)}
           <Field label="Battery Capacity"><TextInput value={form.battery_capacity} onChange={(e) => set("battery_capacity", e.target.value)} /></Field>
           <Field label="Charger"><TextInput value={form.charger} onChange={(e) => set("charger", e.target.value)} /></Field>
         </div>

@@ -24,6 +24,7 @@ import Incidents from "@/pages/Incidents";
 import VehicleHealth from "@/pages/VehicleHealth";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
+import Tasks from "@/pages/Tasks";
 import PlatformApp from "@/pages/platform/PlatformApp";
 
 import NayaraDashboard from "@/pages/nayara/NayaraDashboard";
@@ -65,7 +66,8 @@ function Shell() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<Protected><DashboardRouter /></Protected>} />
       <Route path="/reports" element={<Protected><ReportsRouter /></Protected>} />
-      <Route path="/settings" element={<Protected><Settings /></Protected>} />
+      <Route path="/tasks" element={<Protected><Tasks /></Protected>} />
+          <Route path="/settings" element={<Protected><Settings /></Protected>} />
 
       {/* Fleet (Route39) */}
       <Route path="/fleet" element={<Protected><Fleet /></Protected>} />

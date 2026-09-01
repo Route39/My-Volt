@@ -54,7 +54,7 @@ function EditOrderDialog({ order, onClose, onDone }) {
   if (!order) return null;
   return (
     <Dialog open={!!order} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text max-w-lg">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text max-w-lg">
         <DialogHeader><DialogTitle className="font-display">Edit Order {order.order_number}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Product"><TextInput value={form.product} onChange={(e) => set("product", e.target.value)} /></Field>
@@ -195,7 +195,7 @@ function NewOrderDialog({ open, setOpen, onDone }) {
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-display">New Order</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <div className="col-span-2"><Field label="Customer"><Select value={form.customer_id} onValueChange={(v) => set("customer_id", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border" data-testid="order-customer"><SelectValue placeholder="Select customer" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text max-h-56">{customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></Field></div>

@@ -1,19 +1,19 @@
-import { useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard, Car, Users, KeyRound, Wrench, ClipboardList, MapPin,
+import {  useState, useEffect } from "react";
+import {  NavLink, useNavigate } from "react-router-dom";
+import { 
+  KanbanSquare, LayoutDashboard, Car, Users, KeyRound, Wrench, ClipboardList, MapPin,
   FileText, AlertTriangle, HeartPulse, BarChart3, Settings, Search, LogOut,
   Zap, MoreHorizontal, ChevronDown,
 } from "lucide-react";
-import { useAuth, roleLabel } from "../../context/AuthContext";
-import { useApp, CITIES } from "../../context/AppContext";
+import {  useAuth, roleLabel } from "../../context/AuthContext";
+import {  useApp, CITIES } from "../../context/AppContext";
 import GlobalSearch from "./GlobalSearch";
 import Notifications from "./Notifications";
-import { QuickActionMenu, QuickActionButton } from "./QuickActions";
-import {
+import {  QuickActionMenu, QuickActionButton } from "./QuickActions";
+import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+import {  Avatar, AvatarFallback } from "../ui/avatar";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, mod: "dashboard" },
@@ -27,15 +27,13 @@ const NAV = [
   { to: "/incidents", label: "Incidents", icon: AlertTriangle, mod: "incidents" },
   { to: "/vehicle-health", label: "Vehicle Health", icon: HeartPulse, mod: "health" },
   { to: "/reports", label: "Reports", icon: BarChart3, mod: "reports" },
+  { to: "/tasks", label: "Tasks", icon: KanbanSquare, mod: "tasks" },
   { to: "/settings", label: "Settings", icon: Settings, mod: "settings" },
 ];
 
 const ROLE_MODULES = {
   admin: null,
-  operations_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports", "settings"],
-  city_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports", "settings"],
-  service_manager: ["dashboard", "fleet", "service", "health", "reports"],
-  staff: ["dashboard", "fleet", "drivers", "rentals"],
+  city_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports", "tasks"],
 };
 const NAYARA_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -97,7 +95,7 @@ export default function AppShell({ children }) {
   const nav = useNavigate();
   const initials = (user?.name || "U").split(" ").map((s) => s[0]).slice(0, 2).join("");
   const fabric = isFabric(user);
-  const navItems = fabric ? NAYARA_NAV : navForRole(user?.role);
+  const navItems = fabric ? (user?.role === "admin" ? NAYARA_NAV : NAYARA_NAV.filter(n => n.to !== "/settings")) : navForRole(user?.role);
   const mobileNav = fabric ? NAYARA_MOBILE : MOBILE_NAV.filter((m) => navItems.find((n) => n.to === m.to));
   const brand = fabric
     ? { name: user?.org_name || "Nayara Studio", tag: "Order Studio", icon: ClipboardList }

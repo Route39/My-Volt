@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, AlertTriangle, Trash, Pencil } from "lucide-react";
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 const FLOW = ["reported", "investigation", "action", "resolved", "closed"];
 
 export default function Incidents() {
+  const { user } = useAuth();
   const { city } = useApp();
   const [params] = useSearchParams();
   const [items, setItems] = useState(null);
@@ -36,9 +38,7 @@ export default function Incidents() {
 
   return (
     <div>
-      <PageHeader title="Incidents" subtitle="Accidents, damage, theft and equipment incidents">
-        <PrimaryBtn onClick={() => setShowNew(true)} data-testid="report-incident-btn"><Plus className="w-4 h-4" /> Report Incident</PrimaryBtn>
-      </PageHeader>
+      <PageHeader title="Incidents" subtitle="Accidents, damage, theft and equipment incidents"> {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowNew(true)} data-testid="report-incident-btn"><Plus className="w-4 h-4" /> Report Incident</PrimaryBtn>} </PageHeader>
 
       {!items && <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>}
       {items && items.length === 0 && <EmptyState icon={AlertTriangle} title="No incidents reported ✓" subtitle="A clean record. Report an incident if something happens." />}

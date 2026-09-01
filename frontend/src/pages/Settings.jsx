@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 
-const ROLES = ["admin", "operations_manager", "city_manager", "service_manager", "staff"];
+const ROLES = ["admin", "city_manager"];
 
 export default function Settings() {
   const { user } = useAuth();
@@ -79,7 +79,7 @@ function NewPlanDialog({ open, setOpen, onDone }) {
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">New Rental Plan</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Monthly Rental" /></Field>
@@ -164,6 +164,7 @@ function NewUserDialog({ open, setOpen, onDone }) {
   
   const save = async () => {
     if (!form.name || !form.phone) { toast.error("Name and Phone required"); return; }
+    if (form.role === "city_manager" && !form.city) { toast.error("City is required for City Manager"); return; }
     try { 
       await api.post("/users", { ...form }); 
       toast.success("Member added ✓"); 
@@ -175,7 +176,7 @@ function NewUserDialog({ open, setOpen, onDone }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">Add Team Member</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
@@ -194,7 +195,7 @@ function NewUserDialog({ open, setOpen, onDone }) {
             </Field>
           </div>
           
-          <div className="col-span-2 sm:col-span-1"><Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field></div>
+          <div className="col-span-2 sm:col-span-1"><Field label="City (Optional)"><Select value={form.city || "all"} onValueChange={(v) => set("city", v === "all" ? "" : v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="All Cities" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text"><SelectItem value="all">All Cities</SelectItem>{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field></div>
         </div>
         <div className="flex justify-end pt-1"><PrimaryBtn onClick={save} data-testid="save-user-btn">Add Member</PrimaryBtn></div>
       </DialogContent>
@@ -214,8 +215,9 @@ function EditUserDialog({ user, setOpen, onDone }) {
 
   const save = async () => {
     if (!form.name || !form.phone) { toast.error("Name and Phone required"); return; }
+    if (form.role === "city_manager" && !form.city) { toast.error("City is required for City Manager"); return; }
     try { 
-      await api.put(`/users/${user.id}`, { ...form, city: form.role === "city_manager" ? form.city : null }); 
+      await api.put(`/users/${user.id}`, { ...form, city: form.city === "all" ? "" : form.city }); 
       toast.success("Member updated ✓"); 
       onDone(); 
     } catch (e) { 
@@ -227,7 +229,7 @@ function EditUserDialog({ user, setOpen, onDone }) {
 
   return (
     <Dialog open={!!user} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">Edit Team Member</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
@@ -235,7 +237,7 @@ function EditUserDialog({ user, setOpen, onDone }) {
           <Field label="Email (Optional)"><TextInput type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
           <Field label="Role"><Select value={form.role} onValueChange={(v) => set("role", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{ROLES.map((r) => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}</SelectContent></Select></Field>
           
-          <div className="col-span-2 sm:col-span-1"><Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field></div>
+          <div className="col-span-2 sm:col-span-1"><Field label="City (Optional)"><Select value={form.city || "all"} onValueChange={(v) => set("city", v === "all" ? "" : v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="All Cities" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text"><SelectItem value="all">All Cities</SelectItem>{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field></div>
         </div>
         <div className="flex justify-end pt-1 gap-2">
             <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-xl text-sm font-semibold text-mv-text hover:bg-mv-surface2 transition-colors">Cancel</button>
@@ -246,12 +248,9 @@ function EditUserDialog({ user, setOpen, onDone }) {
   );
 }
 function Org({ user }) {
-  const ROLE_ACCESS = {
-    admin: "Full access to all modules and settings",
-    operations_manager: "Fleet, Drivers, Rentals, Service, Locations",
+    const ROLE_ACCESS = {
+    admin: "Full access to all modules and settings (Global)",
     city_manager: "Assigned city only — full operational access",
-    service_manager: "Service Requests, Vehicle Service, health",
-    staff: "Limited operational access (view + payments)",
   };
   return (
     <div className="space-y-4">

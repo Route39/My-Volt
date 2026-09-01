@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, MapPin, ArrowRightLeft, Pencil, Trash } from "lucide-react";
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 export default function Locations() {
+  const { user } = useAuth();
   const { city } = useApp();
   const [items, setItems] = useState(null);
   const [showNew, setShowNew] = useState(false);
@@ -27,12 +29,10 @@ export default function Locations() {
 
   return (
     <div>
-      <PageHeader title="Locations & Parking" subtitle="Depots and parking capacity across cities">
-        <PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-location-btn"><Plus className="w-4 h-4" /> Add Location</PrimaryBtn>
-      </PageHeader>
+      <PageHeader title="Locations & Parking" subtitle="Depots and parking capacity across cities"> {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-location-btn"><Plus className="w-4 h-4" /> Add Location</PrimaryBtn>} </PageHeader>
 
       {!items && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>}
-      {items && items.length === 0 && <EmptyState icon={MapPin} title="No parking locations yet." subtitle="Add depots and parking bays to track capacity." action={<PrimaryBtn onClick={() => setShowNew(true)}><Plus className="w-4 h-4" /> Add Location</PrimaryBtn>} />}
+      {items && items.length === 0 && <EmptyState icon={MapPin} title="No parking locations yet." subtitle="Add depots and parking bays to track capacity." action={user?.role === "city_manager" ? <PrimaryBtn onClick={() => setShowNew(true)}><Plus className="w-4 h-4" /> Add Location</PrimaryBtn> : null} />}
 
       {items && Object.entries(byCity).map(([c, locs]) => (
         <div key={c} className="mb-6">
@@ -71,6 +71,8 @@ export default function Locations() {
 
 
 function EditLocationDialog({ loc, open, setOpen, onDone }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [form, setForm] = useState(loc || {});
   useEffect(() => { if (open && loc) setForm(loc); }, [open, loc]);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -85,7 +87,7 @@ function EditLocationDialog({ loc, open, setOpen, onDone }) {
         <DialogHeader><DialogTitle className="font-display">Edit Location</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name || ""} onChange={(e) => set("name", e.target.value)} /></Field>
-          <Field label="City"><Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
+          {isAdmin && (<Field label="City"><Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>)}
           <Field label="Capacity"><TextInput type="number" value={form.capacity || 50} onChange={(e) => set("capacity", e.target.value)} /></Field>
           <Field label="Manager"><TextInput value={form.manager || ""} onChange={(e) => set("manager", e.target.value)} /></Field>
           <Field label="Address"><TextInput value={form.address || ""} onChange={(e) => set("address", e.target.value)} /></Field>
@@ -98,8 +100,11 @@ function EditLocationDialog({ loc, open, setOpen, onDone }) {
 }
 
 function NewLocationDialog({ open, setOpen, onDone }) {
-  const [form, setForm] = useState({ name: "", city: "Chennai", address: "", capacity: 50, manager: "", contact: "", status: "active" });
-  useEffect(() => { if(open) setForm({ name: "", city: "Chennai", address: "", capacity: 50, manager: "", contact: "", status: "active" }); }, [open]);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const defaultCity = isAdmin ? "" : (user?.city || "");
+  const [form, setForm] = useState({ name: "", city: defaultCity, address: "", capacity: 50, manager: "", contact: "", status: "active" });
+  useEffect(() => { if(open) setForm({ name: "", city: defaultCity, address: "", capacity: 50, manager: "", contact: "", status: "active" }); }, [open, defaultCity]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const save = async () => { if (!form.name) { toast.error("Name required"); return; } try { await api.post("/locations", { ...form, capacity: Number(form.capacity) }); toast.success("Location added ✓"); onDone(); } catch { toast.error("Failed"); } };
   return (
@@ -108,7 +113,7 @@ function NewLocationDialog({ open, setOpen, onDone }) {
         <DialogHeader><DialogTitle className="font-display">Add Location</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
-          <Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
+          {isAdmin && (<Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>)}
           <Field label="Capacity"><TextInput type="number" value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></Field>
           <Field label="Manager"><TextInput value={form.manager} onChange={(e) => set("manager", e.target.value)} /></Field>
           <Field label="Address"><TextInput value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
