@@ -18,6 +18,13 @@ export default function Drivers() {
   const nav = useNavigate();
   const [items, setItems] = useState(null);
   const [q, setQ] = useState("");
+  const [editingDriver, setEditingDriver] = useState(null);
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    if(window.confirm("Delete this driver permanently?")) {
+      try { await api.delete(`/drivers/${id}`); toast.success("Driver deleted"); load(); } catch(err) { toast.error("Delete failed"); }
+    }
+  };
   const [status, setStatus] = useState("all");
   const [city, setCity] = useState(gCity);
   const [view, setView] = useState("cards");
@@ -72,11 +79,17 @@ export default function Drivers() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map((d, i) => (
             <button key={d.id} onClick={() => nav(`/drivers/${d.id}`)} data-testid={`driver-card-${d.id}`}
-                    className="mv-card mv-card-hover p-5 text-left mv-rise" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
+                    className="mv-card mv-card-hover p-5 text-left mv-rise relative group" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
               <div className="flex items-center gap-3">
                 <Avatar className="w-12 h-12"><AvatarImage src={d.avatar} /><AvatarFallback className="bg-mv-elevated text-sm">{d.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}</AvatarFallback></Avatar>
                 <div className="min-w-0"><div className="font-display font-semibold truncate">{d.name}</div><StatusChip status={d.status} className="mt-1" /></div>
               </div>
+              {canEdit && (
+                <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-mv-surface2 p-1 rounded-lg">
+                  <button onClick={(e) => { e.stopPropagation(); setEditingDriver(d); }} className="p-1 hover:text-mv-primary transition-colors text-mv-dim"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={(e) => handleDelete(d.id, e)} className="p-1 hover:text-red-500 transition-colors text-mv-dim"><Trash className="w-4 h-4" /></button>
+                </div>
+              )}
               <div className="mt-4 space-y-1.5 text-xs text-mv-muted">
                 <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" /> {d.phone}</div>
                 <div className="flex items-center gap-2"><Car className="w-3.5 h-3.5" /> {d.current_vehicle_number || "No vehicle"}</div>
@@ -96,6 +109,14 @@ export default function Drivers() {
               <tr key={d.id} onClick={() => nav(`/drivers/${d.id}`)} className="border-b border-mv-border/50 hover:bg-mv-elevated cursor-pointer transition-colors">
                 <td className="px-4 py-3 font-medium flex items-center gap-2"><Avatar className="w-7 h-7"><AvatarImage src={d.avatar} /><AvatarFallback className="text-[10px] bg-mv-elevated">{d.name[0]}</AvatarFallback></Avatar>{d.name}</td>
                 <td className="px-4 py-3 text-mv-muted">{d.phone}</td><td className="px-4 py-3">{d.current_vehicle_number || "—"}</td><td className="px-4 py-3">{d.city}</td><td className="px-4 py-3"><StatusChip status={d.status} /></td>
+                <td className="px-4 py-3">
+                  {canEdit && (
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                      <button onClick={(e) => { e.stopPropagation(); setEditingDriver(d); }} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-mv-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={(e) => handleDelete(d.id, e)} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-red-500 transition-colors"><Trash className="w-4 h-4" /></button>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}</tbody>
           </table>
@@ -103,13 +124,46 @@ export default function Drivers() {
       )}
 
       <AddDriverDialog open={showAdd} setOpen={setShowAdd} onDone={() => { setShowAdd(false); load(); }} />
+      <EditDriverDialog driver={editingDriver} open={!!editingDriver} setOpen={(v) => { if(!v) setEditingDriver(null); }} onDone={() => { setEditingDriver(null); load(); }} />
     </div>
+  );
+}
+
+
+function EditDriverDialog({ driver, open, setOpen, onDone }) {
+  const [form, setForm] = useState(driver || {});
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  useEffect(() => { if (open && driver) setForm(driver); }, [open, driver]);
+  
+  const save = async () => {
+    if (!form.name || !form.phone) { toast.error("Name & phone required"); return; }
+    setSaving(true);
+    try { await api.put(`/drivers/${driver.id}`, form); toast.success("Updated ✓"); onDone(); }
+    catch (e) { toast.error("Update failed"); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Driver</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-2">
+          <Field label="Name"><TextInput value={form.name || ""} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label="Phone"><TextInput value={form.phone || ""} onChange={(e) => set("phone", e.target.value)} /></Field>
+          <Field label="City"><Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
+          <Field label="Licence No."><TextInput value={form.license_number || ""} onChange={(e) => set("license_number", e.target.value)} /></Field>
+          <Field label="Address"><TextInput value={form.address || ""} onChange={(e) => set("address", e.target.value)} /></Field>
+          <Field label="Status"><TextInput value={form.status || ""} onChange={(e) => set("status", e.target.value)} /></Field>
+        </div>
+        <div className="flex justify-end pt-1"><PrimaryBtn onClick={save} disabled={saving}>Save Changes</PrimaryBtn></div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function AddDriverDialog({ open, setOpen, onDone }) {
   const [form, setForm] = useState({ name: "", phone: "", city: "Chennai", address: "", emergency_contact: "", license_number: "", status: "active" });
   const [saving, setSaving] = useState(false);
+  useEffect(() => { if (open) setForm({ name: "", phone: "", city: "Chennai", address: "", emergency_contact: "", license_number: "", status: "active" }); }, [open]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const save = async () => {
     if (!form.name || !form.phone) { toast.error("Name & phone required"); return; }

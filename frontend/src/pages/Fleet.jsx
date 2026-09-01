@@ -28,9 +28,18 @@ export default function Fleet() {
   const [status, setStatus] = useState(params.get("status") || "all");
   const [city, setCity] = useState(params.get("city") || gCity);
   const [showAdd, setShowAdd] = useState(params.get("new") === "1");
+  const [editingVehicle, setEditingVehicle] = useState(null);
 
   useEffect(() => { const t = setTimeout(() => setDq(q), 300); return () => clearTimeout(t); }, [q]);
   useEffect(() => { setCity(params.get("city") || gCity); }, [gCity]);
+
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to permanently delete this vehicle?")) {
+      try { await api.delete(`/vehicles/${id}`); toast.success("Vehicle deleted"); load(); }
+      catch (err) { toast.error("Failed to delete vehicle"); }
+    }
+  };
 
   const fetchPage = useCallback(async (pg, replace) => {
     const p = { page_size: 60, page: pg };
@@ -102,13 +111,21 @@ export default function Fleet() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map((v, i) => (
             <button key={v.id} onClick={() => nav(`/fleet/${v.id}`)} data-testid={`vehicle-card-${v.id}`}
-                    className="mv-card mv-card-hover p-5 text-left mv-rise" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
+                    className="mv-card mv-card-hover p-5 text-left mv-rise group" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-9 h-9 rounded-xl bg-mv-surface2 border border-mv-border flex items-center justify-center"><Car className="w-4.5 h-4.5 text-mv-primary" /></div>
                   <span className="font-display font-bold text-lg">{v.vehicle_number}</span>
                 </div>
-                <StatusChip status={v.status} />
+                <div className="flex items-center gap-2">
+                  <StatusChip status={v.status} />
+                  {canEdit && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); setEditingVehicle(v); }} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-mv-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={(e) => handleDelete(v.id, e)} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-red-500 transition-colors"><Trash className="w-4 h-4" /></button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="text-sm text-mv-muted mt-3 font-mono">{v.registration_number}</div>
               <div className="flex items-center gap-4 mt-3 text-xs text-mv-muted">
@@ -141,13 +158,21 @@ export default function Fleet() {
               </tr></thead>
               <tbody>
                 {items.map((v) => (
-                  <tr key={v.id} onClick={() => nav(`/fleet/${v.id}`)} className="border-b border-mv-border/50 hover:bg-mv-elevated cursor-pointer transition-colors">
+                  <tr key={v.id} onClick={() => nav(`/fleet/${v.id}`)} className="border-b border-mv-border/50 hover:bg-mv-elevated cursor-pointer transition-colors relative group">
                     <td className="px-4 py-3 font-semibold">{v.vehicle_number}</td>
                     <td className="px-4 py-3 font-mono text-mv-muted">{v.registration_number}</td>
                     <td className="px-4 py-3"><StatusChip status={v.status} /></td>
                     <td className="px-4 py-3">{v.current_driver_name || "—"}</td>
                     <td className="px-4 py-3">{v.city}</td>
                     <td className="px-4 py-3 w-40"><div className="flex items-center gap-2"><BatteryBar percent={v.battery_percent} className="flex-1" /><span className="text-xs">{v.battery_percent}%</span></div></td>
+                    <td className="px-4 py-3">
+                      {canEdit && (
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                          <button onClick={(e) => { e.stopPropagation(); setEditingVehicle(v); }} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-mv-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={(e) => handleDelete(v.id, e)} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-red-500 transition-colors"><Trash className="w-4 h-4" /></button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -157,6 +182,7 @@ export default function Fleet() {
       )}
 
       <AddVehicleDialog open={showAdd} setOpen={setShowAdd} onDone={() => { setShowAdd(false); load(); }} />
+      <EditVehicleDialog vehicle={editingVehicle} open={!!editingVehicle} setOpen={(v) => { if (!v) setEditingVehicle(null); }} onDone={() => { setEditingVehicle(null); load(); }} />
 
       {items && items.length > 0 && items.length < total && (
         <div className="flex justify-center mt-6">
@@ -169,9 +195,48 @@ export default function Fleet() {
   );
 }
 
-function AddVehicleDialog({ open, setOpen, onDone }) {
-  const [form, setForm] = useState({ vehicle_number: "", registration_number: "", model: "Route39 Volt X1", city: "Chennai", battery_percent: 100, battery_capacity: "30 kWh", charger: "3.3 kW Portable" });
+function EditVehicleDialog({ vehicle, open, setOpen, onDone }) {
+  const [form, setForm] = useState(vehicle || {});
   const [saving, setSaving] = useState(false);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  
+  useEffect(() => { if (open && vehicle) setForm(vehicle); }, [open, vehicle]);
+  
+  const save = async () => {
+    if (!form.vehicle_number || !form.registration_number) { toast.error("Vehicle number & registration required"); return; }
+    setSaving(true);
+    try { await api.put(`/vehicles/${vehicle.id}`, form); toast.success("Vehicle updated ✓"); onDone(); }
+    catch (e) { toast.error(e.response?.data?.detail || "Failed to update"); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Vehicle</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-2">
+          <Field label="Vehicle Number"><TextInput data-testid="veh-number" value={form.vehicle_number || ""} onChange={(e) => set("vehicle_number", e.target.value)} /></Field>
+          <Field label="Registration"><TextInput data-testid="veh-reg" value={form.registration_number || ""} onChange={(e) => set("registration_number", e.target.value)} /></Field>
+          <Field label="Model"><TextInput value={form.model || ""} onChange={(e) => set("model", e.target.value)} /></Field>
+          <Field label="City">
+            <Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Battery Capacity"><TextInput value={form.battery_capacity || ""} onChange={(e) => set("battery_capacity", e.target.value)} /></Field>
+          <Field label="Charger"><TextInput value={form.charger || ""} onChange={(e) => set("charger", e.target.value)} /></Field>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <PrimaryBtn onClick={save} disabled={saving} data-testid="update-vehicle-btn">Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddVehicleDialog({ open, setOpen, onDone }) {
+  const [form, setForm] = useState({ vehicle_number: "", registration_number: "", model: "", city: "", battery_percent: 100, battery_capacity: "", charger: "" });
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (open) setForm({ vehicle_number: "", registration_number: "", model: "", city: "", battery_percent: 100, battery_capacity: "", charger: "" }); }, [open]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const save = async () => {
     if (!form.vehicle_number || !form.registration_number) { toast.error("Vehicle number & registration required"); return; }
@@ -189,7 +254,7 @@ function AddVehicleDialog({ open, setOpen, onDone }) {
           <Field label="Model"><TextInput value={form.model} onChange={(e) => set("model", e.target.value)} /></Field>
           <Field label="City">
             <Select value={form.city} onValueChange={(v) => set("city", v)}>
-              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </Field>

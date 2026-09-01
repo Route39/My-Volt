@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, AlertTriangle, Car } from "lucide-react";
+import { Plus, AlertTriangle, Trash, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useApp } from "../context/AppContext";
@@ -16,6 +16,7 @@ export default function Incidents() {
   const { city } = useApp();
   const [params] = useSearchParams();
   const [items, setItems] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
   const [showNew, setShowNew] = useState(params.get("new") === "1");
   const [detail, setDetail] = useState(null);
 
@@ -24,6 +25,14 @@ export default function Incidents() {
     const { data } = await api.get("/incidents", { params: p }); setItems(data);
   }, [city]);
   useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    if (window.confirm("Delete this incident permanently?")) {
+      try { await api.delete(`/incidents/${id}`); toast.success("Incident deleted"); load(); }
+      catch { toast.error("Failed to delete"); }
+    }
+  };
 
   return (
     <div>
@@ -35,21 +44,77 @@ export default function Incidents() {
       {items && items.length === 0 && <EmptyState icon={AlertTriangle} title="No incidents reported ✓" subtitle="A clean record. Report an incident if something happens." />}
       {items && items.length > 0 && (
         <div className="mv-card divide-y divide-mv-border">
-          {items.map((i) => (
-            <button key={i.id} onClick={() => setDetail(i)} className="w-full p-4 flex items-center justify-between hover:bg-mv-elevated transition-colors text-left">
-              <div className="flex items-center gap-3">
+          {items.map((inc) => (
+            <div key={inc.id} className="p-4 flex items-center justify-between hover:bg-mv-elevated transition-colors group">
+              <button className="flex items-center gap-3 flex-1 text-left" onClick={() => setDetail(inc)}>
                 <div className="w-9 h-9 rounded-xl bg-red-500/15 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-red-400" /></div>
-                <div><div className="font-medium">{i.code} · {i.incident_type}</div><div className="text-xs text-mv-dim">{i.vehicle_number} · {i.city} · {fmtDate(i.created_at)}</div></div>
+                <div>
+                  <div className="font-medium">{inc.code} · {inc.incident_type}</div>
+                  <div className="text-xs text-mv-dim">{inc.vehicle_number} · {inc.city} · {fmtDate(inc.created_at)}</div>
+                </div>
+              </button>
+              <div className="flex items-center gap-3">
+                {inc.estimated_damage > 0 && <span className="text-xs text-mv-muted">{inr(inc.estimated_damage)}</span>}
+                <StatusChip status={inc.status} />
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={(e) => { e.stopPropagation(); setEditingItem(inc); }} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-mv-primary transition-colors" title="Edit">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button onClick={(e) => handleDelete(inc.id, e)} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-red-500 transition-colors" title="Delete">
+                    <Trash className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">{i.estimated_damage > 0 && <span className="text-xs text-mv-muted">{inr(i.estimated_damage)}</span>}<StatusChip status={i.status} /></div>
-            </button>
+            </div>
           ))}
         </div>
       )}
 
       <NewIncidentDialog open={showNew} setOpen={setShowNew} onDone={() => { setShowNew(false); load(); }} />
+      <EditIncidentDialog inc={editingItem} onClose={() => setEditingItem(null)} onDone={() => { setEditingItem(null); load(); }} />
       <IncidentDetail inc={detail} setInc={setDetail} onChange={load} />
     </div>
+  );
+}
+
+function EditIncidentDialog({ inc, onClose, onDone }) {
+  const [form, setForm] = useState({ incident_type: "", location: "", description: "", estimated_damage: 0, status: "reported" });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  useEffect(() => {
+    if (inc) setForm({ incident_type: inc.incident_type, location: inc.location || "", description: inc.description || "", estimated_damage: inc.estimated_damage || 0, status: inc.status });
+  }, [inc]);
+  const save = async () => {
+    try { await api.put(`/incidents/${inc.id}`, { ...form, estimated_damage: Number(form.estimated_damage) }); toast.success("Incident updated ✓"); onDone(); }
+    catch { toast.error("Failed to update"); }
+  };
+  if (!inc) return null;
+  return (
+    <Dialog open={!!inc} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Incident — {inc.code}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-1">
+          <Field label="Type">
+            <Select value={form.incident_type} onValueChange={(v) => set("incident_type", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{["Accident", "Vehicle Damage", "Driver Incident", "Theft", "Lost Equipment", "Other"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Status">
+            <Select value={form.status} onValueChange={(v) => set("status", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{FLOW.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Location"><TextInput value={form.location} onChange={(e) => set("location", e.target.value)} /></Field>
+          <Field label="Est. Damage (₹)"><TextInput type="number" value={form.estimated_damage} onChange={(e) => set("estimated_damage", e.target.value)} /></Field>
+        </div>
+        <Field label="Description"><TextArea rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-mv-text hover:bg-mv-surface2 transition-colors">Cancel</button>
+          <PrimaryBtn onClick={save}>Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -68,8 +133,18 @@ function NewIncidentDialog({ open, setOpen, onDone }) {
       <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">Report Incident</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
-          <Field label="Vehicle"><Select value={form.vehicle_id} onValueChange={(v) => set("vehicle_id", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border" data-testid="inc-vehicle"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text max-h-56">{vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{v.vehicle_number} · {v.city}</SelectItem>)}</SelectContent></Select></Field>
-          <Field label="Type"><Select value={form.incident_type} onValueChange={(v) => set("incident_type", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{["Accident", "Vehicle Damage", "Driver Incident", "Theft", "Lost Equipment", "Other"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></Field>
+          <Field label="Vehicle">
+            <Select value={form.vehicle_id} onValueChange={(v) => set("vehicle_id", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border" data-testid="inc-vehicle"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text max-h-56">{vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{v.vehicle_number} · {v.city}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Type">
+            <Select value={form.incident_type} onValueChange={(v) => set("incident_type", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{["Accident", "Vehicle Damage", "Driver Incident", "Theft", "Lost Equipment", "Other"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
           <Field label="Location"><TextInput value={form.location} onChange={(e) => set("location", e.target.value)} /></Field>
           <Field label="Est. Damage (₹)"><TextInput type="number" value={form.estimated_damage} onChange={(e) => set("estimated_damage", e.target.value)} /></Field>
         </div>

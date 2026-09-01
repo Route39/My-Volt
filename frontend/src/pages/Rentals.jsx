@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, Plus, KeyRound, Car, User } from "lucide-react";
+import { Search, Plus, KeyRound, Car, User, Trash, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Field, TextInput } from "../components/common/Page";
+import { toast } from "sonner";
 import api from "../lib/api";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
@@ -13,6 +16,36 @@ const TABS = [
   ["suspended", "Suspended"], ["closed", "Completed"], ["all", "All Rentals"],
 ];
 
+
+function EditRentalDialog({ rental, open, setOpen, onDone }) {
+  const [form, setForm] = useState(rental || {});
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  useEffect(() => { if (open && rental) setForm(rental); }, [open, rental]);
+  
+  const save = async () => {
+    setSaving(true);
+    try { await api.put(`/rentals/${rental.id}`, form); toast.success("Updated ✓"); onDone(); }
+    catch (e) { toast.error("Update failed"); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Rental</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-2">
+          <Field label="Status"><TextInput value={form.status || ""} onChange={(e) => set("status", e.target.value)} /></Field>
+          <Field label="Payment Status"><TextInput value={form.payment_status || ""} onChange={(e) => set("payment_status", e.target.value)} /></Field>
+          <Field label="Plan Name"><TextInput value={form.plan_name || ""} onChange={(e) => set("plan_name", e.target.value)} /></Field>
+          <Field label="Driver Name"><TextInput value={form.driver_name || ""} onChange={(e) => set("driver_name", e.target.value)} /></Field>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <PrimaryBtn onClick={save} disabled={saving}>Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Rentals() {
   const { city } = useApp();
   const { user } = useAuth();
@@ -21,6 +54,13 @@ export default function Rentals() {
   const [items, setItems] = useState(null);
   const [tab, setTab] = useState(params.get("status") || "active");
   const [q, setQ] = useState("");
+  const [editingRental, setEditingRental] = useState(null);
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    if(window.confirm("Delete this rental permanently?")) {
+      try { await api.delete(`/rentals/${id}`); toast.success("Rental deleted"); load(); } catch(err) { toast.error("Delete failed"); }
+    }
+  };
 
   const load = useCallback(async () => {
     setItems(null);
@@ -57,10 +97,18 @@ export default function Rentals() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {items.map((r, i) => (
             <button key={r.id} onClick={() => nav(`/rentals/${r.id}`)} data-testid={`rental-card-${r.id}`}
-                    className="mv-card mv-card-hover p-5 text-left mv-rise" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
+                    className="mv-card mv-card-hover p-5 text-left mv-rise group" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
               <div className="flex items-center justify-between">
                 <span className="font-display font-bold text-lg">{r.rental_code}</span>
-                <StatusChip status={r.status === "suspended" ? "suspended" : r.display_status} />
+                <div className="flex items-center gap-2">
+                  <StatusChip status={r.status === "suspended" ? "suspended" : r.display_status} />
+                  {canCreate && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); setEditingRental(r); }} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-mv-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={(e) => handleDelete(r.id, e)} className="p-1.5 hover:bg-mv-surface2 rounded-lg text-mv-dim hover:text-red-500 transition-colors"><Trash className="w-4 h-4" /></button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="mt-3 space-y-1.5 text-sm">
                 <div className="flex items-center gap-2 text-mv-muted"><User className="w-4 h-4" /> {r.driver_name}</div>
@@ -78,6 +126,7 @@ export default function Rentals() {
           ))}
         </div>
       )}
+      <EditRentalDialog rental={editingRental} open={!!editingRental} setOpen={(v) => { if(!v) setEditingRental(null); }} onDone={() => { setEditingRental(null); load(); }} />
     </div>
   );
 }

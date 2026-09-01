@@ -11,4 +11,4 @@ export function AppProvider({ children }) {
 }
 
 export const useApp = () => useContext(AppCtx);
-export const CITIES = ["Tiruppur", "Coimbatore", "Chennai", "Bangalore"];
+export const CITIES = ["Coimbatore", "Chennai", "Tirupur", "Bangalore"];

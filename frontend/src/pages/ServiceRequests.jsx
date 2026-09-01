@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Plus, Wrench, Car, User, Clock, GripVertical } from "lucide-react";
+import { Plus, Wrench, Car, User, Clock, GripVertical , Trash, Pencil} from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useApp } from "../context/AppContext";
@@ -21,6 +21,8 @@ export default function ServiceRequests() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const [items, setItems] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const handleDelete = async (id) => { if(window.confirm("Delete this?")) { try { await api.delete(`/service-requests/${id}`); toast.success("Deleted"); load(); } catch { toast.error("Failed"); } } };
   const [showNew, setShowNew] = useState(params.get("new") === "1");
   const [detail, setDetail] = useState(null);
   const [dragId, setDragId] = useState(null);
@@ -65,7 +67,7 @@ export default function ServiceRequests() {
                   {col.map((s) => (
                     <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onClick={() => setDetail(s)}
                          data-testid={`sr-card-${s.id}`}
-                         className={`mv-card p-3 cursor-grab active:cursor-grabbing hover:border-mv-primary/50 transition-colors ${dragId === s.id ? "opacity-50" : "mv-rise"}`}>
+                         className={`mv-card p-3 cursor-grab active:cursor-grabbing hover:border-mv-primary/50 transition-colors group ${dragId === s.id ? "opacity-50" : "mv-rise"}`}>
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-mono text-mv-dim">{s.code}</span>
                         <span className={`w-2 h-2 rounded-full ${PRIO_DOT[s.priority]}`} title={s.priority} />
@@ -76,7 +78,13 @@ export default function ServiceRequests() {
                         <div className="flex items-center gap-1"><User className="w-3 h-3" /> {s.driver_name || "—"} · {s.city}</div>
                         <div className="flex items-center gap-1"><Clock className="w-3 h-3" /> {timeAgo(s.created_at)}</div>
                       </div>
-                      <div className="mt-2"><StatusChip status={s.priority} /></div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <StatusChip status={s.priority} />
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                          <button onClick={(e) => { e.stopPropagation(); setEditingItem(s); }} className="p-1 hover:text-mv-primary transition-colors text-mv-dim" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="p-1 hover:text-red-500 transition-colors text-mv-dim" title="Delete"><Trash className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                   {col.length === 0 && <div className="text-[11px] text-mv-dim text-center py-6">Drop here</div>}
@@ -89,9 +97,53 @@ export default function ServiceRequests() {
 
       <NewSRDialog open={showNew} setOpen={setShowNew} onDone={() => { setShowNew(false); load(); }} />
       <SRDetail sr={detail} setSr={setDetail} onChange={load} />
+      <EditSRDialog sr={editingItem} onClose={() => setEditingItem(null)} onDone={() => { setEditingItem(null); load(); }} />
     </div>
   );
 }
+
+function EditSRDialog({ sr, onClose, onDone }) {
+  const [form, setForm] = useState({ issue_type: "Breakdown", priority: "high", description: "", assigned_to: "", status: "open" });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  useEffect(() => {
+    if (sr) setForm({ issue_type: sr.issue_type || "Breakdown", priority: sr.priority || "high", description: sr.description || "", assigned_to: sr.assigned_to || "", status: sr.status || "open" });
+  }, [sr]);
+  const save = async () => {
+    try { await api.put(`/service-requests/${sr.id}`, form); toast.success("Request updated ✓"); onDone(); }
+    catch { toast.error("Failed to update"); }
+  };
+  if (!sr) return null;
+  const issues = ["Breakdown", "Battery", "Tyre", "Brake", "Electrical", "Charger", "Accident", "General", "Other"];
+  return (
+    <Dialog open={!!sr} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Request — {sr.code}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-1">
+          <Field label="Issue Type">
+            <Select value={form.issue_type} onValueChange={(v) => set("issue_type", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{issues.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Priority">
+            <Select value={form.priority} onValueChange={(v) => set("priority", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">{["critical","high","medium","low"].map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Assigned To"><TextInput value={form.assigned_to} onChange={(e) => set("assigned_to", e.target.value)} placeholder="Name or team" /></Field>
+          <Field label="Status"><TextInput value={form.status} onChange={(e) => set("status", e.target.value)} /></Field>
+        </div>
+        <Field label="Description"><TextArea rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-mv-text hover:bg-mv-surface2 transition-colors">Cancel</button>
+          <PrimaryBtn onClick={save}>Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function NewSRDialog({ open, setOpen, onDone }) {
   const [vehicles, setVehicles] = useState([]);

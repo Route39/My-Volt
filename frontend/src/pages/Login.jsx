@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { formatApiErrorDetail } from "../lib/api";
-import { Zap, Loader2 } from "lucide-react";
+import { Zap, Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setError(""); setLoading(true);
-    try { await login(email, password); }
+    try { await login(username, password); }
     catch (e2) { setError(formatApiErrorDetail(e2.response?.data?.detail) || e2.message); }
     finally { setLoading(false); }
   };
@@ -58,16 +59,23 @@ export default function Login() {
 
           <form onSubmit={submit} className="mt-8 space-y-4">
             <div>
-              <label className="mv-label">Email</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required
+              <label className="mv-label">Phone / Username</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} type="text" required
+                     placeholder="Enter your phone or email"
                      data-testid="login-email"
                      className="mt-1.5 w-full h-11 px-3.5 rounded-xl bg-mv-surface border border-mv-border outline-none focus:border-mv-primary transition-colors" />
             </div>
             <div>
               <label className="mv-label">Password</label>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required
-                     data-testid="login-password"
-                     className="mt-1.5 w-full h-11 px-3.5 rounded-xl bg-mv-surface border border-mv-border outline-none focus:border-mv-primary transition-colors" />
+              <div className="relative mt-1.5">
+                <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? "text" : "password"} required
+                       placeholder="Enter your password"
+                       data-testid="login-password"
+                       className="w-full h-11 pl-3.5 pr-10 rounded-xl bg-mv-surface border border-mv-border outline-none focus:border-mv-primary transition-colors" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-mv-muted hover:text-mv-text transition">
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {error && <div data-testid="login-error" className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{error}</div>}
             <button type="submit" disabled={loading} data-testid="login-submit"

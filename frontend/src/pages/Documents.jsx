@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { FileText, Plus, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { FileText, Plus, ShieldCheck, ShieldAlert, ShieldX, Trash, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useApp, CITIES } from "../context/AppContext";
@@ -16,6 +16,8 @@ export default function Documents() {
   const [items, setItems] = useState(null);
   const [status, setStatus] = useState(params.get("status") || "all");
   const [showNew, setShowNew] = useState(false);
+  const [editingDoc, setEditingDoc] = useState(null);
+  const handleDelete = async (id) => { if(window.confirm("Delete document?")) { try { await api.delete(`/documents/${id}`); toast.success("Deleted"); load(); } catch { toast.error("Failed"); } } };
 
   const load = useCallback(async () => {
     const p = {}; if (city !== "all") p.city = city; if (status !== "all") p.status = status;
@@ -47,25 +49,56 @@ export default function Documents() {
       {items && items.length > 0 && (
         <div className="mv-card divide-y divide-mv-border">
           {items.map((d) => (
-            <div key={d.id} className="p-4 flex items-center justify-between">
+            <div key={d.id} className="p-4 flex items-center justify-between group">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-mv-surface2 border border-mv-border flex items-center justify-center"><FileText className="w-4 h-4 text-mv-dim" /></div>
                 <div><div className="font-medium">{d.doc_type} · <span className="text-mv-muted">{d.owner_label}</span></div><div className="text-xs text-mv-dim capitalize">{d.owner_type} · {d.city} · Expires {fmtDate(d.expiry_date)}</div></div>
               </div>
-              <StatusChip status={d.doc_status} />
+              <div className="flex items-center gap-2">
+                <StatusChip status={d.doc_status} />
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => setEditingDoc(d)} className="p-1 hover:text-mv-primary transition-colors text-mv-dim"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => handleDelete(d.id)} className="p-1 hover:text-red-500 transition-colors text-mv-dim"><Trash className="w-4 h-4" /></button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
       )}
 
       <NewDocDialog open={showNew} setOpen={setShowNew} onDone={() => { setShowNew(false); load(); }} />
+      <EditDocDialog doc={editingDoc} open={!!editingDoc} setOpen={(v) => { if(!v) setEditingDoc(null); }} onDone={() => { setEditingDoc(null); load(); }} />
     </div>
+  );
+}
+
+
+function EditDocDialog({ doc, open, setOpen, onDone }) {
+  const [form, setForm] = useState(doc || {});
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  useEffect(() => { if (open && doc) setForm(doc); }, [open, doc]);
+  const save = async () => {
+    try { await api.put(`/documents/${doc.id}`, form); toast.success("Updated ✓"); onDone(); } catch { toast.error("Failed"); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Document</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-1">
+          <Field label="Document Type"><TextInput value={form.doc_type || ""} onChange={(e) => set("doc_type", e.target.value)} /></Field>
+          <Field label="Number"><TextInput value={form.number || ""} onChange={(e) => set("number", e.target.value)} /></Field>
+          <Field label="Expiry Date"><TextInput type="date" value={form.expiry_date || ""} onChange={(e) => set("expiry_date", e.target.value)} /></Field>
+        </div>
+        <div className="flex justify-end pt-1"><PrimaryBtn onClick={save}>Save Changes</PrimaryBtn></div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function NewDocDialog({ open, setOpen, onDone }) {
   const [owners, setOwners] = useState([]);
   const [form, setForm] = useState({ owner_type: "vehicle", owner_id: "", doc_type: "Insurance", number: "", expiry_date: "" });
+  useEffect(() => { if(open) setForm({ owner_type: "vehicle", owner_id: "", doc_type: "Insurance", number: "", expiry_date: "" }); }, [open]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   useEffect(() => {
     if (!open) return;

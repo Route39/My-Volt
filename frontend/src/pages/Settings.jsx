@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Users, KeyRound, Shield } from "lucide-react";
+import { Plus, Users, KeyRound, Shield, Eye, EyeOff, Trash, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useAuth, roleLabel } from "../context/AuthContext";
@@ -27,7 +27,7 @@ export default function Settings() {
           <TabsTrigger value="org" className="data-[state=active]:bg-mv-elevated">Organization</TabsTrigger>
         </TabsList>
         {!fabric && <TabsContent value="plans" className="mt-4"><Plans /></TabsContent>}
-        <TabsContent value="team" className="mt-4"><Team currentRole={user?.role} /></TabsContent>
+        <TabsContent value="team" className="mt-4"><Team currentUser={user} /></TabsContent>
         <TabsContent value="org" className="mt-4"><Org user={user} /></TabsContent>
       </Tabs>
     </div>
@@ -92,47 +92,103 @@ function NewPlanDialog({ open, setOpen, onDone }) {
   );
 }
 
-function Team({ currentRole }) {
+function Team({ currentUser }) {
   const [users, setUsers] = useState(null);
   const [showNew, setShowNew] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  
   const load = () => api.get("/users").then((r) => setUsers(r.data)).catch(() => setUsers([]));
   useEffect(() => { load(); }, []);
+  
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to permanently delete this team member?")) {
+      try {
+        await api.delete(`/users/${id}`);
+        toast.success("Member deleted ✓");
+        load();
+      } catch (e) {
+        toast.error("Failed to delete member");
+      }
+    }
+  };
+
   return (
     <div>
-      {currentRole === "admin" && <div className="flex justify-end mb-4"><PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-user-btn"><Plus className="w-4 h-4" /> Add Member</PrimaryBtn></div>}
+      {currentUser?.role === "admin" && <div className="flex justify-end mb-4"><PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-user-btn"><Plus className="w-4 h-4" /> Add Member</PrimaryBtn></div>}
       {!users && <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>}
       {users && (
         <div className="mv-card divide-y divide-mv-border">
           {users.map((u) => (
             <div key={u.id} className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3"><Avatar className="w-9 h-9"><AvatarFallback className="bg-mv-elevated text-xs">{(u.name || "U").split(" ").map((s) => s[0]).slice(0, 2).join("")}</AvatarFallback></Avatar><div><div className="font-medium">{u.name}</div><div className="text-xs text-mv-dim">{u.email}{u.city ? ` · ${u.city}` : ""}</div></div></div>
-              <StatusChip status="blue" label={roleLabel(u.role)} />
+              <div className="flex items-center gap-3">
+                <Avatar className="w-9 h-9"><AvatarFallback className="bg-mv-elevated text-xs">{(u.name || "U").split(" ").map((s) => s[0]).slice(0, 2).join("")}</AvatarFallback></Avatar>
+                <div>
+                  <div className="font-medium">{u.name}</div>
+                  <div className="text-xs text-mv-dim">{u.phone || u.email}{u.city ? ` · ${u.city}` : ""}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <StatusChip status="blue" label={roleLabel(u.role)} />
+                {currentUser?.role === "admin" && u.id !== currentUser.id && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setEditingUser(u)} className="p-1.5 text-mv-muted hover:text-mv-text transition-colors rounded-lg hover:bg-mv-surface2">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(u.id)} className="p-1.5 text-mv-muted hover:text-red-500 transition-colors rounded-lg hover:bg-mv-surface2">
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
       <NewUserDialog open={showNew} setOpen={setShowNew} onDone={() => { setShowNew(false); load(); }} />
+      <EditUserDialog user={editingUser} setOpen={(v) => { if (!v) setEditingUser(null); }} onDone={() => { setEditingUser(null); load(); }} />
     </div>
   );
 }
 
 function NewUserDialog({ open, setOpen, onDone }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "staff", city: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", role: "staff", city: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  useEffect(() => { if (open) { setForm({ name: "", phone: "", email: "", password: "", role: "staff", city: "" }); setShowPassword(false); } }, [open]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  
   const save = async () => {
-    if (!form.name || !form.email || !form.password) { toast.error("Name, email, password required"); return; }
-    try { await api.post("/users", { ...form, city: form.role === "city_manager" ? form.city : null }); toast.success("Member added ✓"); onDone(); } catch (e) { toast.error(e.response?.data?.detail || "Failed"); }
+    if (!form.name || !form.phone) { toast.error("Name and Phone required"); return; }
+    try { 
+      await api.post("/users", { ...form }); 
+      toast.success("Member added ✓"); 
+      onDone(); 
+    } catch (e) { 
+      toast.error(e.response?.data?.detail || "Failed"); 
+    }
   };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">Add Team Member</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
-          <Field label="Email"><TextInput type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
-          <Field label="Password"><TextInput type="password" value={form.password} onChange={(e) => set("password", e.target.value)} /></Field>
+          <Field label="Phone / Username"><TextInput value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+          <Field label="Email (Optional)"><TextInput type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
           <Field label="Role"><Select value={form.role} onValueChange={(v) => set("role", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{ROLES.map((r) => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}</SelectContent></Select></Field>
-          {form.role === "city_manager" && <Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>}
+          
+          <div className="col-span-2 sm:col-span-1">
+            <Field label="Password">
+              <div className="relative">
+                <TextInput type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="Default: password123" className="pr-10" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-mv-muted hover:text-mv-text">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </Field>
+          </div>
+          
+          <div className="col-span-2 sm:col-span-1"><Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field></div>
         </div>
         <div className="flex justify-end pt-1"><PrimaryBtn onClick={save} data-testid="save-user-btn">Add Member</PrimaryBtn></div>
       </DialogContent>
@@ -140,6 +196,49 @@ function NewUserDialog({ open, setOpen, onDone }) {
   );
 }
 
+function EditUserDialog({ user, setOpen, onDone }) {
+  const [form, setForm] = useState({ name: "", phone: "", email: "", role: "staff", city: "" });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  
+  useEffect(() => {
+    if (user) {
+      setForm({ name: user.name, phone: user.phone || "", email: user.email || "", role: user.role, city: user.city || "" });
+    }
+  }, [user]);
+
+  const save = async () => {
+    if (!form.name || !form.phone) { toast.error("Name and Phone required"); return; }
+    try { 
+      await api.put(`/users/${user.id}`, { ...form, city: form.role === "city_manager" ? form.city : null }); 
+      toast.success("Member updated ✓"); 
+      onDone(); 
+    } catch (e) { 
+      toast.error(e.response?.data?.detail || "Failed"); 
+    }
+  };
+
+  if (!user) return null;
+
+  return (
+    <Dialog open={!!user} onOpenChange={setOpen}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+        <DialogHeader><DialogTitle className="font-display">Edit Team Member</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4 pt-1">
+          <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label="Phone / Username"><TextInput value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+          <Field label="Email (Optional)"><TextInput type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
+          <Field label="Role"><Select value={form.role} onValueChange={(v) => set("role", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{ROLES.map((r) => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}</SelectContent></Select></Field>
+          
+          <div className="col-span-2 sm:col-span-1"><Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field></div>
+        </div>
+        <div className="flex justify-end pt-1 gap-2">
+            <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-xl text-sm font-semibold text-mv-text hover:bg-mv-surface2 transition-colors">Cancel</button>
+            <PrimaryBtn onClick={save}>Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 function Org({ user }) {
   const ROLE_ACCESS = {
     admin: "Full access to all modules and settings",

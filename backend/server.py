@@ -105,13 +105,21 @@ async def add_notification(org_id, level, title, message, link=None, city=None):
 
 # ---------- auth models ----------
 class LoginBody(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
+
+class UserUpdateBody(BaseModel):
+    name: str
+    phone: str
+    email: str = ""
+    role: str
+    city: Optional[str] = None
 
 class RegisterBody(BaseModel):
-    email: EmailStr
-    password: str
+    phone: str
+    email: str = ""
+    password: str = ""
     name: str
     role: str = "staff"
     city: Optional[str] = None
@@ -139,17 +147,17 @@ async def _check_lockout(identifier):
 
 @api.post("/auth/login")
 async def login(body: LoginBody, response: Response):
-    email = body.email.lower()
-    await _check_lockout(email)
-    user = await db.users.find_one({"email": email})
+    username = body.username.lower().strip()
+    await _check_lockout(username)
+    user = await db.users.find_one({"$or": [{"email": username}, {"phone": username}]})
     if not user or not authlib.verify_password(body.password, user["password_hash"]):
         await db.login_attempts.update_one(
-            {"identifier": email},
+            {"identifier": username},
             {"$inc": {"count": 1}, "$set": {"locked_until": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}},
             upsert=True)
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    await db.login_attempts.delete_one({"identifier": email})
-    token = set_auth_cookies(response, str(user["_id"]), email)
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    await db.login_attempts.delete_one({"identifier": username})
+    token = set_auth_cookies(response, str(user["_id"]), username)
     out = ser(user)
     out = await attach_org(out)
     out["token"] = token
@@ -208,12 +216,19 @@ async def list_users(request: Request):
 async def create_user(body: RegisterBody, request: Request):
     user = await get_user(request)
     require_role(user, ["admin"])
-    email = body.email.lower()
-    if await db.users.find_one({"email": email}):
-        raise HTTPException(status_code=400, detail="Email already exists")
+    
+    phone = body.phone.strip()
+    email = body.email.lower().strip() if body.email else ""
+    
+    if await db.users.find_one({"phone": phone}):
+        raise HTTPException(status_code=400, detail="Phone already exists")
+        
+    pwd = body.password if body.password else "password123"
+    
     doc = {
+        "phone": phone,
         "email": email,
-        "password_hash": authlib.hash_password(body.password),
+        "password_hash": authlib.hash_password(pwd),
         "name": body.name,
         "role": body.role if body.role in authlib.ROLES else "staff",
         "city": body.city,
@@ -221,9 +236,61 @@ async def create_user(body: RegisterBody, request: Request):
         "created_at": now_iso(),
     }
     res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    doc["id"] = str(res.inserted_id)
     await log_audit(user, "user_created", "user", str(res.inserted_id), f"User {body.name} created")
-    return ser(await db.users.find_one({"_id": res.inserted_id}))
+    return ser(doc)
 
+@api.put("/users/{user_id}")
+async def update_user(user_id: str, body: UserUpdateBody, request: Request):
+    from bson.objectid import ObjectId
+    user = await get_user(request)
+    require_role(user, ["admin"])
+    
+    try:
+        oid = ObjectId(user_id)
+    except:
+        oid = user_id
+        
+    update_data = {
+        "name": body.name,
+        "phone": body.phone.strip(),
+        "email": body.email.lower().strip() if body.email else "",
+        "role": body.role,
+        "city": body.city
+    }
+    
+    # We must check by _id since MyVolt uses default ObjectIds for inserted users
+    res = await db.users.update_one(
+        {"_id": oid, "organization_id": user["organization_id"]},
+        {"$set": update_data}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "User not found")
+        
+    await log_audit(user, "user_updated", "user", str(oid), f"User {body.name} updated")
+    return {"ok": True}
+
+@api.delete("/users/{user_id}")
+async def delete_user(user_id: str, request: Request):
+    from bson.objectid import ObjectId
+    user = await get_user(request)
+    require_role(user, ["admin"])
+    
+    try:
+        oid = ObjectId(user_id)
+    except:
+        oid = user_id
+        
+    if user_id == str(user.get("id")):
+        raise HTTPException(400, "Cannot delete yourself")
+        
+    res = await db.users.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "User not found")
+        
+    await log_audit(user, "user_deleted", "user", str(oid), f"User {user_id} deleted")
+    return {"ok": True}
 
 # ---------- cities ----------
 @api.get("/cities")
@@ -416,6 +483,18 @@ async def update_driver(did: str, body: dict, request: Request):
     return ser(await db.drivers.find_one({"_id": oid(did)}))
 
 
+
+@api.delete("/drivers/{did}")
+async def delete_driver(did: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "city_manager", "admin"])
+    try: oid = ObjectId(did)
+    except: oid = did
+    res = await db.drivers.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    await log_audit(user, "driver_deleted", "driver", str(oid), f"Driver {did} deleted")
+    return {"ok": True}
+
 @api.post("/drivers/{did}/assign-vehicle")
 async def assign_vehicle(did: str, body: dict, request: Request):
     user = await get_user(request)
@@ -591,6 +670,28 @@ async def create_rental(body: RentalBody, request: Request):
     out["display_status"] = rental_computed_status(out)
     return out
 
+
+
+@api.put("/rentals/{rid}")
+async def update_rental(rid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "city_manager", "admin"])
+    for k in ("id", "_id"): body.pop(k, None)
+    try: oid = ObjectId(rid)
+    except: oid = rid
+    res = await db.rentals.update_one({"_id": oid, "organization_id": user["organization_id"]}, {"$set": body})
+    if res.matched_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+@api.delete("/rentals/{rid}")
+async def delete_rental(rid: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "admin"])
+    try: oid = ObjectId(rid)
+    except: oid = rid
+    res = await db.rentals.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
 
 @api.post("/rentals/{rid}/payments")
 async def add_payment(rid: str, body: dict, request: Request):
@@ -812,6 +913,17 @@ async def update_sr(sid: str, body: dict, request: Request):
 
 
 # ---------- vehicle services ----------
+
+@api.delete("/service-requests/{sid}")
+async def delete_service_request(sid: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "service_manager", "admin"])
+    try: oid = ObjectId(sid)
+    except: oid = sid
+    res = await db.service_requests.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
 @api.get("/vehicle-services")
 async def list_services(request: Request, vehicle_id: Optional[str] = None, city: Optional[str] = None):
     user = await get_user(request)
@@ -844,6 +956,28 @@ async def create_service(body: dict, request: Request):
 
 
 # ---------- locations ----------
+
+@api.put("/vehicle-services/{vsid}")
+async def update_vehicle_service(vsid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "service_manager", "admin"])
+    for k in ("id", "_id"): body.pop(k, None)
+    try: oid = ObjectId(vsid)
+    except: oid = vsid
+    res = await db.vehicle_services.update_one({"_id": oid, "organization_id": user["organization_id"]}, {"$set": body})
+    if res.matched_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+@api.delete("/vehicle-services/{vsid}")
+async def delete_vehicle_service(vsid: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "service_manager", "admin"])
+    try: oid = ObjectId(vsid)
+    except: oid = vsid
+    res = await db.vehicle_services.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
 @api.get("/locations")
 async def list_locations(request: Request, city: Optional[str] = None):
     user = await get_user(request)
@@ -882,6 +1016,28 @@ def doc_status(expiry):
     return "valid"
 
 
+
+@api.put("/locations/{lid}")
+async def update_location(lid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "admin"])
+    for k in ("id", "_id"): body.pop(k, None)
+    try: oid = ObjectId(lid)
+    except: oid = lid
+    res = await db.locations.update_one({"_id": oid, "organization_id": user["organization_id"]}, {"$set": body})
+    if res.matched_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+@api.delete("/locations/{lid}")
+async def delete_location(lid: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "admin"])
+    try: oid = ObjectId(lid)
+    except: oid = lid
+    res = await db.locations.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
 @api.get("/documents")
 async def list_documents(request: Request, owner_type: Optional[str] = None, owner_id: Optional[str] = None,
                          city: Optional[str] = None, status: Optional[str] = None):
@@ -910,6 +1066,28 @@ async def create_document(body: dict, request: Request):
 
 
 # ---------- incidents ----------
+
+@api.put("/documents/{did}")
+async def update_document(did: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "admin"])
+    for k in ("id", "_id"): body.pop(k, None)
+    try: oid = ObjectId(did)
+    except: oid = did
+    res = await db.documents.update_one({"_id": oid, "organization_id": user["organization_id"]}, {"$set": body})
+    if res.matched_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+@api.delete("/documents/{did}")
+async def delete_document(did: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "admin"])
+    try: oid = ObjectId(did)
+    except: oid = did
+    res = await db.documents.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
 @api.get("/incidents")
 async def list_incidents(request: Request, city: Optional[str] = None, status: Optional[str] = None):
     user = await get_user(request)
@@ -943,6 +1121,17 @@ async def update_incident(iid: str, body: dict, request: Request):
 
 
 # ---------- notifications ----------
+
+@api.delete("/incidents/{iid}")
+async def delete_incident(iid: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["operations_manager", "admin"])
+    try: oid = ObjectId(iid)
+    except: oid = iid
+    res = await db.incidents.delete_one({"_id": oid, "organization_id": user["organization_id"]})
+    if res.deleted_count == 0: raise HTTPException(404, "Not found")
+    return {"ok": True}
+
 @api.get("/notifications")
 async def list_notifications(request: Request):
     user = await get_user(request)
@@ -1539,7 +1728,6 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    await db.users.create_index("email", unique=True)
     await db.vehicles.create_index([("organization_id", 1), ("status", 1), ("city", 1)])
     await db.vehicles.create_index("registration_number")
     await db.drivers.create_index([("organization_id", 1), ("city", 1)])
