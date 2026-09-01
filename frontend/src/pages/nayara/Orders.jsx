@@ -40,6 +40,57 @@ function OrderCard({ o, draggable, dragId, onDragStart, onOpen }) {
   );
 }
 
+
+function EditOrderDialog({ order, onClose, onDone }) {
+  const [form, setForm] = useState({ product: "", quantity: 1, priority: "normal", status: "pending" });
+  const set = (k, v) => setForm(f => ({...f, [k]: v}));
+  useEffect(() => { if (order) setForm({ product: order.product||"", quantity: order.quantity||1, priority: order.priority||"normal", status: order.status||"pending" }); }, [order]);
+  
+  const save = async () => {
+    try { await api.put(`/orders/${order.id}`, { ...form, quantity: Number(form.quantity) }); toast.success("Updated ✓"); onDone(); }
+    catch { toast.error("Failed"); }
+  };
+  
+  if (!order) return null;
+  return (
+    <Dialog open={!!order} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text max-w-lg">
+        <DialogHeader><DialogTitle className="font-display">Edit Order {order.order_number}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Product"><TextInput value={form.product} onChange={(e) => set("product", e.target.value)} /></Field>
+          <Field label="Quantity"><TextInput type="number" value={form.quantity} onChange={(e) => set("quantity", e.target.value)} /></Field>
+          <Field label="Priority">
+            <Select value={form.priority} onValueChange={(v) => set("priority", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">
+                <SelectItem value="normal">Normal</SelectItem><SelectItem value="urgent">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Status">
+            <Select value={form.status} onValueChange={(v) => set("status", v)}>
+              <SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-mv-surface border-mv-border text-mv-text">
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="quality_check">Quality Check</SelectItem>
+                <SelectItem value="ready">Ready for Dispatch</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="on_hold">On Hold</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold hover:bg-mv-surface2 rounded-xl transition-colors">Cancel</button>
+          <PrimaryBtn onClick={save}>Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Orders() {
   const [params] = useSearchParams();
   const nav = useNavigate();
@@ -48,6 +99,8 @@ export default function Orders() {
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState("all");
   const [showNew, setShowNew] = useState(params.get("new") === "1");
+  const [editingItem, setEditingItem] = useState(null);
+  const handleDelete = async (id) => { if(window.confirm("Delete order?")) { try { await api.delete(`/orders/${id}`); toast.success("Deleted"); load(); } catch { toast.error("Failed to delete"); } } };
   const [dragId, setDragId] = useState(null);
 
   const load = useCallback(async () => {
@@ -123,6 +176,7 @@ export default function Orders() {
         </div>
       )}
 
+      <EditOrderDialog order={editingItem} onClose={() => setEditingItem(null)} onDone={() => { setEditingItem(null); load(); }} />
       <NewOrderDialog open={showNew} setOpen={setShowNew} onDone={() => { setShowNew(false); load(); }} />
     </div>
   );

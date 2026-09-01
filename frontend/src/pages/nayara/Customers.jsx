@@ -1,11 +1,44 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Search, Users, Phone, Building2, Mail } from "lucide-react";
+import { Plus, Search, Users, Phone, Building2, Mail, Pencil, Trash } from "lucide-react";
 import { toast } from "sonner";
 import api from "../../lib/api";
 import { Skeleton, EmptyState } from "../../components/common/Primitives";
 import { PageHeader, PrimaryBtn, Field, TextInput, TextArea } from "../../components/common/Page";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
+
+
+function EditCustomerDialog({ customer, onClose, onDone }) {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", address: "", notes: "" });
+  const set = (k, v) => setForm(f => ({...f, [k]: v}));
+  useEffect(() => { if (customer) setForm({ name: customer.name||"", email: customer.email||"", phone: customer.phone||"", company: customer.company||"", address: customer.address||"", notes: customer.notes||"" }); }, [customer]);
+  
+  const save = async () => {
+    try { await api.put(`/customers/${customer.id}`, form); toast.success("Updated ✓"); onDone(); }
+    catch { toast.error("Failed"); }
+  };
+  
+  if (!customer) return null;
+  return (
+    <Dialog open={!!customer} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="bg-mv-surface border-mv-border text-mv-text max-w-lg">
+        <DialogHeader><DialogTitle className="font-display">Edit Customer</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label="Company"><TextInput value={form.company} onChange={(e) => set("company", e.target.value)} /></Field>
+          <Field label="Phone"><TextInput value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+          <Field label="Email"><TextInput value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
+        </div>
+        <Field label="Address"><TextArea rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
+        <Field label="Notes"><TextArea rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold hover:bg-mv-surface2 rounded-xl transition-colors">Cancel</button>
+          <PrimaryBtn onClick={save}>Save Changes</PrimaryBtn>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function Customers() {
   const [params] = useSearchParams();
@@ -13,6 +46,8 @@ export default function Customers() {
   const [items, setItems] = useState(null);
   const [q, setQ] = useState("");
   const [showNew, setShowNew] = useState(params.get("new") === "1");
+  const [editingItem, setEditingItem] = useState(null);
+  const handleDelete = async (id) => { if(window.confirm("Delete customer?")) { try { await api.delete(`/customers/${id}`); toast.success("Deleted"); load(); } catch { toast.error("Failed to delete"); } } };
 
   const load = useCallback(async () => {
     const { data } = await api.get("/customers", { params: q ? { q } : {} }); setItems(data);
@@ -37,7 +72,7 @@ export default function Customers() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map((c, i) => (
             <button key={c.id} onClick={() => nav(`/customers/${c.id}`)} data-testid={`customer-card-${c.id}`}
-                    className="mv-card mv-card-hover p-5 text-left mv-rise" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
+                    className="group mv-card mv-card-hover p-5 text-left mv-rise relative" style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}>
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-xl bg-blue-500/12 flex items-center justify-center"><Building2 className="w-5 h-5 text-mv-primary" /></div>
                 <div className="min-w-0"><div className="font-display font-semibold truncate">{c.name}</div><div className="text-xs text-mv-dim">{c.order_count} order(s)</div></div>
@@ -52,6 +87,7 @@ export default function Customers() {
       )}
 
       <NewCustomerDialog open={showNew} setOpen={setShowNew} onDone={() => { setShowNew(false); load(); }} />
+      <EditCustomerDialog customer={editingItem} onClose={() => setEditingItem(null)} onDone={() => { setEditingItem(null); load(); }} />
     </div>
   );
 }

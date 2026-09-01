@@ -3,7 +3,7 @@ import { Plus, Users, KeyRound, Shield, Eye, EyeOff, Trash, Pencil } from "lucid
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useAuth, roleLabel } from "../context/AuthContext";
-import { CITIES } from "../context/AppContext";
+import { CITIES, useApp } from "../context/AppContext";
 import { Skeleton, StatusChip } from "../components/common/Primitives";
 import { PageHeader, PrimaryBtn, Field, TextInput, GhostBtn } from "../components/common/Page";
 import { inr } from "../lib/format";
@@ -39,8 +39,11 @@ function Plans() {
   const [plans, setPlans] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const canEdit = ["admin", "operations_manager"].includes(user?.role);
-  const load = () => api.get("/rental-plans").then((r) => setPlans(r.data));
-  useEffect(() => { load(); }, []);
+  const { city } = useApp();
+  const load = () => api.get("/rental-plans").then((r) => {
+    setPlans(city === "all" ? r.data : r.data.filter(p => !p.cities || p.cities.length === 0 || p.cities.includes(city)));
+  });
+  useEffect(() => { load(); }, [city]);
   return (
     <div>
       <div className="flex justify-end mb-4">{canEdit && <PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-plan-btn"><Plus className="w-4 h-4" /> New Plan</PrimaryBtn>}</div>
@@ -97,8 +100,11 @@ function Team({ currentUser }) {
   const [showNew, setShowNew] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   
-  const load = () => api.get("/users").then((r) => setUsers(r.data)).catch(() => setUsers([]));
-  useEffect(() => { load(); }, []);
+  const { city } = useApp();
+  const load = () => api.get("/users").then((r) => {
+    setUsers(city === "all" ? r.data : r.data.filter(u => u.city === city));
+  }).catch(() => setUsers([]));
+  useEffect(() => { load(); }, [city]);
   
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to permanently delete this team member?")) {

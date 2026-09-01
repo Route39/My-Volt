@@ -1743,3 +1743,25 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
+
+
+@api.delete("/customers/{cid}")
+async def delete_customer(cid: str, request: Request):
+    user = request.state.user
+    if user["role"] not in ["admin", "operations_manager"]: raise HTTPException(403)
+    c = await db.customers.find_one(org_filter(user, {"_id": oid(cid)}))
+    if not c: raise HTTPException(404)
+    await db.customers.delete_one({"_id": oid(cid)})
+    await log_audit(user, "customer_deleted", "customer", cid, f"Deleted customer {c.get('name')}")
+    return {"ok": True}
+
+@api.delete("/orders/{oid_}")
+async def delete_order(oid_: str, request: Request):
+    user = request.state.user
+    if user["role"] not in ["admin", "operations_manager"]: raise HTTPException(403)
+    o = await db.orders.find_one(org_filter(user, {"_id": oid(oid_)}))
+    if not o: raise HTTPException(404)
+    await db.orders.delete_one({"_id": oid(oid_)})
+    await log_audit(user, "order_deleted", "order", oid_, f"Deleted order {o.get('order_number')}")
+    return {"ok": True}
+

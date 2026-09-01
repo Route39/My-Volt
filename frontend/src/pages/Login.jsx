@@ -57,10 +57,10 @@ export default function Login() {
           <h2 className="font-display text-2xl font-semibold">Sign in</h2>
           <p className="text-mv-muted text-sm mt-1">Access your MyVolt workspace.</p>
 
-          <form onSubmit={submit} className="mt-8 space-y-4">
+          <form onSubmit={submit} className="mt-8 space-y-4" autoComplete="off">
             <div>
               <label className="mv-label">Phone / Username</label>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} type="text" required
+              <input value={username} onChange={(e) => setUsername(e.target.value)} type="text" required autoComplete="off" name="new_username_field" readOnly onFocus={(e) => e.target.removeAttribute("readonly")}
                      placeholder="Enter your phone or email"
                      data-testid="login-email"
                      className="mt-1.5 w-full h-11 px-3.5 rounded-xl bg-mv-surface border border-mv-border outline-none focus:border-mv-primary transition-colors" />
@@ -68,7 +68,7 @@ export default function Login() {
             <div>
               <label className="mv-label">Password</label>
               <div className="relative mt-1.5">
-                <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? "text" : "password"} required
+                <input value={password} onChange={(e) => setPassword(e.target.value)} type="text" required autoComplete="off" name="new_password_field" style={{ WebkitTextSecurity: showPassword ? "none" : "disc" }}
                        placeholder="Enter your password"
                        data-testid="login-password"
                        className="w-full h-11 pl-3.5 pr-10 rounded-xl bg-mv-surface border border-mv-border outline-none focus:border-mv-primary transition-colors" />
