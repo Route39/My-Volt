@@ -21,7 +21,7 @@ function EditCustomerDialog({ customer, onClose, onDone }) {
   if (!customer) return null;
   return (
     <Dialog open={!!customer} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text max-w-lg">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text max-w-lg">
         <DialogHeader><DialogTitle className="font-display">Edit Customer</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
@@ -98,7 +98,7 @@ function NewCustomerDialog({ open, setOpen, onDone }) {
   const save = async () => { if (!form.name) { toast.error("Name required"); return; } try { await api.post("/customers", form); toast.success("Customer added ✓"); onDone(); } catch { toast.error("Failed"); } };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">New Customer</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} data-testid="customer-name" /></Field>

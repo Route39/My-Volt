@@ -79,7 +79,7 @@ function NewPlanDialog({ open, setOpen, onDone }) {
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">New Rental Plan</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Monthly Rental" /></Field>
@@ -175,7 +175,7 @@ function NewUserDialog({ open, setOpen, onDone }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">Add Team Member</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
@@ -227,7 +227,7 @@ function EditUserDialog({ user, setOpen, onDone }) {
 
   return (
     <Dialog open={!!user} onOpenChange={setOpen}>
-      <DialogContent className="bg-mv-surface border-mv-border text-mv-text">
+      <DialogContent aria-describedby={undefined} className="bg-mv-surface border-mv-border text-mv-text">
         <DialogHeader><DialogTitle className="font-display">Edit Team Member</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 pt-1">
           <Field label="Name"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
