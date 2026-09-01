@@ -207,7 +207,7 @@ async def refresh(request: Request, response: Response):
 @api.get("/users")
 async def list_users(request: Request):
     user = await get_user(request)
-    require_role(user, ["admin", "operations_manager"])
+    require_role(user, ["admin", "city_manager"])
     users = await db.users.find({"organization_id": user["organization_id"]}).to_list(500)
     return [ser(u) for u in users]
 
@@ -370,7 +370,7 @@ async def get_vehicle(vid: str, request: Request):
 @api.post("/vehicles")
 async def create_vehicle(body: VehicleBody, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     doc = body.model_dump()
     doc["organization_id"] = user["organization_id"]
     doc["created_at"] = now_iso()
@@ -382,7 +382,7 @@ async def create_vehicle(body: VehicleBody, request: Request):
 @api.put("/vehicles/{vid}")
 async def update_vehicle(vid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager", "service_manager"])
+    require_role(user, ["admin", "city_manager"])
     for k in ("id", "_id", "assignments", "services", "documents", "incidents", "service_requests", "current_rental"):
         body.pop(k, None)
     await db.vehicles.update_one(org_filter(user, {"_id": oid(vid)}), {"$set": body})
@@ -393,7 +393,7 @@ async def update_vehicle(vid: str, body: dict, request: Request):
 @api.post("/vehicles/{vid}/transfer")
 async def transfer_vehicle(vid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager"])
+    require_role(user, ["admin", "city_manager"])
     v = await db.vehicles.find_one(org_filter(user, {"_id": oid(vid)}))
     if not v:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -464,7 +464,7 @@ async def get_driver(did: str, request: Request):
 @api.post("/drivers")
 async def create_driver(body: DriverBody, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     doc = body.model_dump()
     doc["organization_id"] = user["organization_id"]
     doc["created_at"] = now_iso()
@@ -476,7 +476,7 @@ async def create_driver(body: DriverBody, request: Request):
 @api.put("/drivers/{did}")
 async def update_driver(did: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     for k in ("id", "_id", "assignments", "rentals", "incidents", "documents"):
         body.pop(k, None)
     await db.drivers.update_one(org_filter(user, {"_id": oid(did)}), {"$set": body})
@@ -487,7 +487,7 @@ async def update_driver(did: str, body: dict, request: Request):
 @api.delete("/drivers/{did}")
 async def delete_driver(did: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(did)
     except: oid = did
     res = await db.drivers.delete_one({"_id": oid, "organization_id": user["organization_id"]})
@@ -498,7 +498,7 @@ async def delete_driver(did: str, request: Request):
 @api.post("/drivers/{did}/assign-vehicle")
 async def assign_vehicle(did: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     driver = await db.drivers.find_one(org_filter(user, {"_id": oid(did)}))
     vehicle = await db.vehicles.find_one(org_filter(user, {"_id": oid(body["vehicle_id"])}))
     if not driver or not vehicle:
@@ -545,7 +545,7 @@ async def list_plans(request: Request):
 @api.post("/rental-plans")
 async def create_plan(body: PlanBody, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager"])
+    require_role(user, ["admin", "city_manager"])
     doc = body.model_dump()
     doc["organization_id"] = user["organization_id"]
     doc["created_at"] = now_iso()
@@ -556,7 +556,7 @@ async def create_plan(body: PlanBody, request: Request):
 @api.put("/rental-plans/{pid}")
 async def update_plan(pid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager"])
+    require_role(user, ["admin", "city_manager"])
     body.pop("id", None); body.pop("_id", None)
     await db.rental_plans.update_one(org_filter(user, {"_id": oid(pid)}), {"$set": body})
     return ser(await db.rental_plans.find_one({"_id": oid(pid)}))
@@ -641,7 +641,7 @@ async def _next_rental_code(org_id):
 @api.post("/rentals")
 async def create_rental(body: RentalBody, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     driver = await db.drivers.find_one(org_filter(user, {"_id": oid(body.driver_id)}))
     vehicle = await db.vehicles.find_one(org_filter(user, {"_id": oid(body.vehicle_id)}))
     plan = await db.rental_plans.find_one(org_filter(user, {"_id": oid(body.plan_id)}))
@@ -675,7 +675,7 @@ async def create_rental(body: RentalBody, request: Request):
 @api.put("/rentals/{rid}")
 async def update_rental(rid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     for k in ("id", "_id"): body.pop(k, None)
     try: oid = ObjectId(rid)
     except: oid = rid
@@ -686,7 +686,7 @@ async def update_rental(rid: str, body: dict, request: Request):
 @api.delete("/rentals/{rid}")
 async def delete_rental(rid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(rid)
     except: oid = rid
     res = await db.rentals.delete_one({"_id": oid, "organization_id": user["organization_id"]})
@@ -696,7 +696,7 @@ async def delete_rental(rid: str, request: Request):
 @api.post("/rentals/{rid}/payments")
 async def add_payment(rid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager", "staff"])
+    require_role(user, ["admin", "city_manager"])
     r = await db.rentals.find_one(org_filter(user, {"_id": oid(rid)}))
     if not r:
         raise HTTPException(status_code=404, detail="Rental not found")
@@ -725,7 +725,7 @@ async def add_payment(rid: str, body: dict, request: Request):
 @api.post("/rentals/{rid}/activate")
 async def activate_rental(rid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     r = await db.rentals.find_one(org_filter(user, {"_id": oid(rid)}))
     if not r:
         raise HTTPException(status_code=404, detail="Rental not found")
@@ -750,7 +750,7 @@ async def activate_rental(rid: str, request: Request):
 @api.post("/rentals/{rid}/renew")
 async def renew_rental(rid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     r = await db.rentals.find_one(org_filter(user, {"_id": oid(rid)}))
     if not r:
         raise HTTPException(status_code=404, detail="Rental not found")
@@ -782,7 +782,7 @@ async def renew_rental(rid: str, body: dict, request: Request):
 async def suspend_rental(rid: str, request: Request, body: dict = None):
     user = await get_user(request)
     body = body or {}
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     r = await db.rentals.find_one(org_filter(user, {"_id": oid(rid)}))
     if not r:
         raise HTTPException(status_code=404, detail="Rental not found")
@@ -795,7 +795,7 @@ async def suspend_rental(rid: str, request: Request, body: dict = None):
 @api.post("/rentals/{rid}/close")
 async def close_rental(rid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     r = await db.rentals.find_one(org_filter(user, {"_id": oid(rid)}))
     if not r:
         raise HTTPException(status_code=404, detail="Rental not found")
@@ -821,7 +821,7 @@ async def list_handovers(request: Request, vehicle_id: Optional[str] = None, ren
 @api.post("/handovers")
 async def create_handover(body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager", "staff"])
+    require_role(user, ["admin", "city_manager"])
     body["organization_id"] = user["organization_id"]
     body["created_at"] = now_iso()
     body["type"] = "handover"
@@ -842,7 +842,7 @@ async def list_returns(request: Request, vehicle_id: Optional[str] = None, renta
 @api.post("/returns")
 async def create_return(body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager", "staff"])
+    require_role(user, ["admin", "city_manager"])
     body["organization_id"] = user["organization_id"]
     body["created_at"] = now_iso()
     body["type"] = "return"
@@ -917,7 +917,7 @@ async def update_sr(sid: str, body: dict, request: Request):
 @api.delete("/service-requests/{sid}")
 async def delete_service_request(sid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "service_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(sid)
     except: oid = sid
     res = await db.service_requests.delete_one({"_id": oid, "organization_id": user["organization_id"]})
@@ -936,7 +936,7 @@ async def list_services(request: Request, vehicle_id: Optional[str] = None, city
 @api.post("/vehicle-services")
 async def create_service(body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["service_manager", "operations_manager"])
+    require_role(user, ["admin", "city_manager"])
     body["organization_id"] = user["organization_id"]
     body["created_at"] = now_iso()
     res = await db.vehicle_services.insert_one(body)
@@ -960,7 +960,7 @@ async def create_service(body: dict, request: Request):
 @api.put("/vehicle-services/{vsid}")
 async def update_vehicle_service(vsid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "service_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     for k in ("id", "_id"): body.pop(k, None)
     try: oid = ObjectId(vsid)
     except: oid = vsid
@@ -971,7 +971,7 @@ async def update_vehicle_service(vsid: str, body: dict, request: Request):
 @api.delete("/vehicle-services/{vsid}")
 async def delete_vehicle_service(vsid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "service_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(vsid)
     except: oid = vsid
     res = await db.vehicle_services.delete_one({"_id": oid, "organization_id": user["organization_id"]})
@@ -993,7 +993,7 @@ async def list_locations(request: Request, city: Optional[str] = None):
 @api.post("/locations")
 async def create_location(body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "city_manager"])
+    require_role(user, ["admin", "city_manager"])
     body["organization_id"] = user["organization_id"]
     body["created_at"] = now_iso()
     res = await db.locations.insert_one(body)
@@ -1020,7 +1020,7 @@ def doc_status(expiry):
 @api.put("/locations/{lid}")
 async def update_location(lid: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     for k in ("id", "_id"): body.pop(k, None)
     try: oid = ObjectId(lid)
     except: oid = lid
@@ -1031,7 +1031,7 @@ async def update_location(lid: str, body: dict, request: Request):
 @api.delete("/locations/{lid}")
 async def delete_location(lid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(lid)
     except: oid = lid
     res = await db.locations.delete_one({"_id": oid, "organization_id": user["organization_id"]})
@@ -1070,7 +1070,7 @@ async def create_document(body: dict, request: Request):
 @api.put("/documents/{did}")
 async def update_document(did: str, body: dict, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     for k in ("id", "_id"): body.pop(k, None)
     try: oid = ObjectId(did)
     except: oid = did
@@ -1081,7 +1081,7 @@ async def update_document(did: str, body: dict, request: Request):
 @api.delete("/documents/{did}")
 async def delete_document(did: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(did)
     except: oid = did
     res = await db.documents.delete_one({"_id": oid, "organization_id": user["organization_id"]})
@@ -1125,7 +1125,7 @@ async def update_incident(iid: str, body: dict, request: Request):
 @api.delete("/incidents/{iid}")
 async def delete_incident(iid: str, request: Request):
     user = await get_user(request)
-    require_role(user, ["operations_manager", "admin"])
+    require_role(user, ["admin", "city_manager"])
     try: oid = ObjectId(iid)
     except: oid = iid
     res = await db.incidents.delete_one({"_id": oid, "organization_id": user["organization_id"]})

@@ -32,10 +32,7 @@ const NAV = [
 
 const ROLE_MODULES = {
   admin: null,
-  operations_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports", "settings"],
-  city_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports", "settings"],
-  service_manager: ["dashboard", "fleet", "service", "health", "reports"],
-  staff: ["dashboard", "fleet", "drivers", "rentals"],
+  city_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports"],
 };
 const NAYARA_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },

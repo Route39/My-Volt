@@ -8,7 +8,7 @@ from bson import ObjectId
 
 JWT_ALGORITHM = "HS256"
 
-ROLES = ["admin", "company_admin", "operations_manager", "city_manager", "service_manager", "staff", "platform_admin"]
+ROLES = ["admin", "city_manager"]
 
 # Which modules each role may access (used for frontend hints; backend enforces per-endpoint)
 ROLE_ACCESS = {
