@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Wrench, Car, User, Clock, GripVertical , Trash, Pencil} from "lucide-react";
@@ -17,6 +18,7 @@ const STAGES = [
 const PRIO_DOT = { critical: "bg-red-500", high: "bg-amber-500", medium: "bg-blue-500", low: "bg-zinc-500" };
 
 export default function ServiceRequests() {
+  const { user } = useAuth();
   const { city } = useApp();
   const [params] = useSearchParams();
   const nav = useNavigate();
@@ -46,9 +48,7 @@ export default function ServiceRequests() {
 
   return (
     <div>
-      <PageHeader title="Service Requests" subtitle="Visual maintenance workflow · drag cards across stages">
-        <PrimaryBtn onClick={() => setShowNew(true)} data-testid="create-sr-btn"><Plus className="w-4 h-4" /> New Request</PrimaryBtn>
-      </PageHeader>
+      <PageHeader title="Service Requests" subtitle="Visual maintenance workflow · drag cards across stages"> {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowNew(true)} data-testid="create-sr-btn"><Plus className="w-4 h-4" /> New Request</PrimaryBtn>} </PageHeader>
 
       {!items && <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}</div>}
 

@@ -38,12 +38,22 @@ def now_iso():
 
 
 def ser(doc):
-    """Serialize a mongo doc: _id -> id (str)."""
+    """Serialize a mongo doc: _id -> id (str), recursively convert ObjectIds."""
     if doc is None:
         return None
-    doc = dict(doc)
+    import json
+    from bson import ObjectId as _OID
+    def _convert(v):
+        if isinstance(v, _OID):
+            return str(v)
+        if isinstance(v, dict):
+            return {k2: _convert(v2) for k2, v2 in v.items()}
+        if isinstance(v, list):
+            return [_convert(i) for i in v]
+        return v
+    doc = _convert(dict(doc))
     if "_id" in doc:
-        doc["id"] = str(doc.pop("_id"))
+        doc["id"] = doc.pop("_id")
     doc.pop("password_hash", None)
     return doc
 
@@ -1715,7 +1725,6 @@ async def platform_add_company(body: dict, request: Request):
     return {"company": row, "admin": admin_out}
 
 
-app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1765,3 +1774,122 @@ async def delete_order(oid_: str, request: Request):
     await log_audit(user, "order_deleted", "order", oid_, f"Deleted order {o.get('order_number')}")
     return {"ok": True}
 
+
+
+# ==============================================================================
+# Tasks API (Kanban)
+# ==============================================================================
+
+class TaskBody(BaseModel):
+    title: str
+    description: str = ""
+    assignee: str = ""
+    assignee_id: str = ""
+    assignee_name: str = ""
+    priority: str = "medium"
+    status: str = "todo"
+    due_date: str = ""
+    checklist: list = []
+    comments: list = []
+
+@api.get("/tasks")
+async def get_tasks(request: Request):
+    user = await get_user(request)
+    q = {"organization_id": user["organization_id"]}
+    if user["role"] == "city_manager":
+        q["assignee_id"] = user.get("id") or str(user.get("_id", ""))
+    tasks = await db.tasks.find(q).sort("created_at", -1).to_list(1000)
+    return [ser(t) for t in tasks]
+
+@api.post("/tasks")
+async def create_task(body: TaskBody, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager"])
+    doc = body.model_dump()
+    doc["organization_id"] = user["organization_id"]
+    
+    import uuid
+    mapped = []
+    for c in doc.get("checklist", []):
+        if isinstance(c, str):
+            mapped.append({"id": str(uuid.uuid4()), "text": c, "done": False})
+        else:
+            mapped.append(c)
+    doc["checklist"] = mapped
+
+    doc["created_at"] = now_iso()
+    doc["created_by"] = user["name"]
+    res = await db.tasks.insert_one(doc)
+    return ser(await db.tasks.find_one({"_id": res.inserted_id}))
+
+@api.put("/tasks/{tid}")
+async def update_task(tid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager"])
+    for k in ("_id", "id", "organization_id"):
+        body.pop(k, None)
+    body["updated_at"] = now_iso()
+    q = {"_id": oid(tid), "organization_id": user["organization_id"]}
+    await db.tasks.update_one(q, {"$set": body})
+    return ser(await db.tasks.find_one({"_id": oid(tid)}))
+
+@api.delete("/tasks/{tid}")
+async def delete_task(tid: str, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager"])
+    q = {"_id": oid(tid), "organization_id": user["organization_id"]}
+    await db.tasks.delete_one(q)
+    return {"ok": True}
+
+@api.get("/tasks/{tid}")
+async def get_task(tid: str, request: Request):
+    user = await get_user(request)
+    task = await db.tasks.find_one({"_id": oid(tid), "organization_id": user["organization_id"]})
+    if not task:
+        raise HTTPException(404, "Task not found")
+    return ser(task)
+
+@api.put("/tasks/{tid}/status")
+async def update_task_status(tid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager", "staff"])
+    q = {"_id": oid(tid), "organization_id": user["organization_id"]}
+    await db.tasks.update_one(q, {"$set": {"status": body.get("status"), "updated_at": now_iso()}})
+    return {"ok": True}
+
+import uuid
+
+@api.post("/tasks/{tid}/checklist")
+async def add_task_checklist(tid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager", "staff"])
+    item = {"id": str(uuid.uuid4()), "text": body.get("text"), "done": False}
+    await db.tasks.update_one({"_id": oid(tid), "organization_id": user["organization_id"]}, {"$push": {"checklist": item}})
+    return item
+
+@api.put("/tasks/{tid}/checklist")
+async def update_task_checklist(tid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager", "staff"])
+    # We update the specific checklist item
+    await db.tasks.update_one(
+        {"_id": oid(tid), "organization_id": user["organization_id"], "checklist.id": body.get("item_id")},
+        {"$set": {"checklist.$.done": body.get("done")}}
+    )
+    return {"ok": True}
+
+@api.post("/tasks/{tid}/comments")
+async def add_task_comment(tid: str, body: dict, request: Request):
+    user = await get_user(request)
+    require_role(user, ["admin", "city_manager", "staff"])
+    comment = {
+        "id": str(uuid.uuid4()),
+        "text": body.get("text"),
+        "author": user["name"],
+        "created_at": now_iso()
+    }
+    await db.tasks.update_one(org_filter(user, {"_id": oid(tid)}), {"$push": {"comments": comment}})
+    return comment
+
+
+app.include_router(api)

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 
-const ROLES = ["admin", "operations_manager", "city_manager", "service_manager", "staff"];
+const ROLES = ["admin", "city_manager"];
 
 export default function Settings() {
   const { user } = useAuth();

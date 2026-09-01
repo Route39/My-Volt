@@ -1,19 +1,19 @@
-import { useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard, Car, Users, KeyRound, Wrench, ClipboardList, MapPin,
+import {  useState, useEffect } from "react";
+import {  NavLink, useNavigate } from "react-router-dom";
+import { 
+  KanbanSquare, LayoutDashboard, Car, Users, KeyRound, Wrench, ClipboardList, MapPin,
   FileText, AlertTriangle, HeartPulse, BarChart3, Settings, Search, LogOut,
   Zap, MoreHorizontal, ChevronDown,
 } from "lucide-react";
-import { useAuth, roleLabel } from "../../context/AuthContext";
-import { useApp, CITIES } from "../../context/AppContext";
+import {  useAuth, roleLabel } from "../../context/AuthContext";
+import {  useApp, CITIES } from "../../context/AppContext";
 import GlobalSearch from "./GlobalSearch";
 import Notifications from "./Notifications";
-import { QuickActionMenu, QuickActionButton } from "./QuickActions";
-import {
+import {  QuickActionMenu, QuickActionButton } from "./QuickActions";
+import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+import {  Avatar, AvatarFallback } from "../ui/avatar";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, mod: "dashboard" },
@@ -27,12 +27,13 @@ const NAV = [
   { to: "/incidents", label: "Incidents", icon: AlertTriangle, mod: "incidents" },
   { to: "/vehicle-health", label: "Vehicle Health", icon: HeartPulse, mod: "health" },
   { to: "/reports", label: "Reports", icon: BarChart3, mod: "reports" },
+  { to: "/tasks", label: "Tasks", icon: KanbanSquare, mod: "tasks" },
   { to: "/settings", label: "Settings", icon: Settings, mod: "settings" },
 ];
 
 const ROLE_MODULES = {
   admin: null,
-  city_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports"],
+  city_manager: ["dashboard", "fleet", "drivers", "rentals", "service", "locations", "documents", "incidents", "health", "reports", "tasks"],
 };
 const NAYARA_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },

@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileText, Plus, ShieldCheck, ShieldAlert, ShieldX, Trash, Pencil } from "lucide-react";
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 export default function Documents() {
+  const { user } = useAuth();
   const { city } = useApp();
   const [params] = useSearchParams();
   const [items, setItems] = useState(null);
@@ -30,9 +32,7 @@ export default function Documents() {
 
   return (
     <div>
-      <PageHeader title="Documents" subtitle="Vehicle & driver compliance documents">
-        <PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-document-btn"><Plus className="w-4 h-4" /> Add Document</PrimaryBtn>
-      </PageHeader>
+      <PageHeader title="Documents" subtitle="Vehicle & driver compliance documents"> {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowNew(true)} data-testid="add-document-btn"><Plus className="w-4 h-4" /> Add Document</PrimaryBtn>} </PageHeader>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[["Valid", counts.valid, ShieldCheck, "text-green-400"], ["Expiring Soon", counts.expiring_soon, ShieldAlert, "text-amber-400"], ["Expired", counts.expired, ShieldX, "text-red-400"]].map(([l, v, Icon, c]) => (

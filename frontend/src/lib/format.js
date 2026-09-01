@@ -33,3 +33,14 @@ export function relativeEnd(iso) {
   const days = Math.round(h / 24);
   return `in ${days} day${days > 1 ? "s" : ""}`;
 }
+
+export const PRIORITY = {
+  high: { label: "High", color: "text-red-500 bg-red-500/10" },
+  medium: { label: "Medium", color: "text-amber-500 bg-amber-500/10" },
+  low: { label: "Low", color: "text-blue-500 bg-blue-500/10" }
+};
+
+export function shortDate(d) {
+  if (!d) return "";
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}

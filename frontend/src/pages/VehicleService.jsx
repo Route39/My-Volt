@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Wrench, Car , Trash, Pencil} from "lucide-react";
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 export default function VehicleService() {
+  const { user } = useAuth();
   const { city } = useApp();
   const [params] = useSearchParams();
   const nav = useNavigate();
@@ -29,9 +31,7 @@ export default function VehicleService() {
 
   return (
     <div>
-      <PageHeader title="Vehicle Service" subtitle="Repair & maintenance records">
-        <PrimaryBtn onClick={() => setShowNew(true)} data-testid="record-service-btn"><Plus className="w-4 h-4" /> Record Service</PrimaryBtn>
-      </PageHeader>
+      <PageHeader title="Vehicle Service" subtitle="Repair & maintenance records"> {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowNew(true)} data-testid="record-service-btn"><Plus className="w-4 h-4" /> Record Service</PrimaryBtn>} </PageHeader>
 
       {items && items.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -43,7 +43,7 @@ export default function VehicleService() {
       )}
 
       {!items && <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>}
-      {items && items.length === 0 && <EmptyState icon={Wrench} title="No service records yet." subtitle="Record a completed service to build vehicle history." action={<PrimaryBtn onClick={() => setShowNew(true)}><Plus className="w-4 h-4" /> Record Service</PrimaryBtn>} />}
+      {items && items.length === 0 && <EmptyState icon={Wrench} title="No service records yet." subtitle="Record a completed service to build vehicle history." action={user?.role === "city_manager" ? <PrimaryBtn onClick={() => setShowNew(true)}><Plus className="w-4 h-4" /> Record Service</PrimaryBtn> : null} />}
 
       {items && items.length > 0 && (
         <div className="mv-card divide-y divide-mv-border">

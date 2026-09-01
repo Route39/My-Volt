@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, Plus, Users, Car, MapPin, Phone, KeyRound, LayoutGrid, List } from "lucide-react";
+import { Car, KeyRound, LayoutGrid, List, MapPin, Pencil, Phone, Plus, Search, Trash, Users } from "lucide-react";;
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useApp, CITIES } from "../context/AppContext";
@@ -47,7 +47,7 @@ export default function Drivers() {
   return (
     <div>
       <PageHeader title="Drivers" subtitle="Driver roster and assignments">
-        {canEdit && <PrimaryBtn onClick={() => setShowAdd(true)} data-testid="add-driver-btn"><Plus className="w-4 h-4" /> Add Driver</PrimaryBtn>}
+        {user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowAdd(true)} data-testid="add-driver-btn"><Plus className="w-4 h-4" /> Add Driver</PrimaryBtn>}
       </PageHeader>
 
       <div className="flex flex-col lg:flex-row gap-3 mb-5">
@@ -73,7 +73,7 @@ export default function Drivers() {
       </div>
 
       {!items && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>}
-      {items && items.length === 0 && <EmptyState icon={Users} title="No drivers found" subtitle="Add drivers to start assigning vehicles and rentals." action={canEdit && <PrimaryBtn onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Add Driver</PrimaryBtn>} />}
+      {items && items.length === 0 && <EmptyState icon={Users} title="No drivers found" subtitle="Add drivers to start assigning vehicles and rentals." action={user?.role === "city_manager" && <PrimaryBtn onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Add Driver</PrimaryBtn>} />}
 
       {items && items.length > 0 && view === "cards" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -131,6 +131,8 @@ export default function Drivers() {
 
 
 function EditDriverDialog({ driver, open, setOpen, onDone }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [form, setForm] = useState(driver || {});
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -149,7 +151,7 @@ function EditDriverDialog({ driver, open, setOpen, onDone }) {
         <div className="grid grid-cols-2 gap-4 pt-2">
           <Field label="Name"><TextInput value={form.name || ""} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label="Phone"><TextInput value={form.phone || ""} onChange={(e) => set("phone", e.target.value)} /></Field>
-          <Field label="City"><Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
+          {isAdmin && (<Field label="City"><Select value={form.city || "Chennai"} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>)}
           <Field label="Licence No."><TextInput value={form.license_number || ""} onChange={(e) => set("license_number", e.target.value)} /></Field>
           <Field label="Address"><TextInput value={form.address || ""} onChange={(e) => set("address", e.target.value)} /></Field>
           <Field label="Status"><TextInput value={form.status || ""} onChange={(e) => set("status", e.target.value)} /></Field>
@@ -161,9 +163,12 @@ function EditDriverDialog({ driver, open, setOpen, onDone }) {
 }
 
 function AddDriverDialog({ open, setOpen, onDone }) {
-  const [form, setForm] = useState({ name: "", phone: "", city: "Chennai", address: "", emergency_contact: "", license_number: "", status: "active" });
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const defaultCity = isAdmin ? "" : (user?.city || "");
+  const [form, setForm] = useState({ name: "", phone: "", city: defaultCity, address: "", emergency_contact: "", license_number: "", status: "active" });
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (open) setForm({ name: "", phone: "", city: "Chennai", address: "", emergency_contact: "", license_number: "", status: "active" }); }, [open]);
+  useEffect(() => { if (open) setForm({ name: "", phone: "", city: defaultCity, address: "", emergency_contact: "", license_number: "", status: "active" }); }, [open, defaultCity]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const save = async () => {
     if (!form.name || !form.phone) { toast.error("Name & phone required"); return; }
@@ -177,7 +182,7 @@ function AddDriverDialog({ open, setOpen, onDone }) {
         <div className="grid grid-cols-2 gap-4 pt-2">
           <Field label="Name"><TextInput data-testid="driver-name" value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label="Phone"><TextInput data-testid="driver-phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91 9…" /></Field>
-          <Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
+          {isAdmin && (<Field label="City"><Select value={form.city} onValueChange={(v) => set("city", v)}><SelectTrigger className="h-10 bg-mv-surface2 border-mv-border"><SelectValue /></SelectTrigger><SelectContent className="bg-mv-surface border-mv-border text-mv-text">{CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>)}
           <Field label="Licence No."><TextInput value={form.license_number} onChange={(e) => set("license_number", e.target.value)} /></Field>
           <Field label="Address"><TextInput value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
           <Field label="Emergency Contact"><TextInput value={form.emergency_contact} onChange={(e) => set("emergency_contact", e.target.value)} /></Field>
