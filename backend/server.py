@@ -1737,7 +1737,7 @@ async def startup():
     await db.audit_logs.create_index([("organization_id", 1), ("created_at", -1)])
     await db.orders.create_index([("organization_id", 1), ("status", 1)])
     await db.customers.create_index([("organization_id", 1)])
-    await seedlib.seed(db, authlib)
+    # await seedlib.seed(db, authlib)  # disabled - do not reseed
 
 
 @app.on_event("shutdown")
