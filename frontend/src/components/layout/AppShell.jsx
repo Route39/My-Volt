@@ -94,7 +94,7 @@ export default function AppShell({ children }) {
   const nav = useNavigate();
   const initials = (user?.name || "U").split(" ").map((s) => s[0]).slice(0, 2).join("");
   const fabric = isFabric(user);
-  const navItems = fabric ? NAYARA_NAV : navForRole(user?.role);
+  const navItems = fabric ? (user?.role === "admin" ? NAYARA_NAV : NAYARA_NAV.filter(n => n.to !== "/settings")) : navForRole(user?.role);
   const mobileNav = fabric ? NAYARA_MOBILE : MOBILE_NAV.filter((m) => navItems.find((n) => n.to === m.to));
   const brand = fabric
     ? { name: user?.org_name || "Nayara Studio", tag: "Order Studio", icon: ClipboardList }
