@@ -228,7 +228,7 @@ async def create_user(body: RegisterBody, request: Request):
     require_role(user, ["admin"])
     
     phone = body.phone.strip()
-    email = body.email.lower().strip() if body.email else ""
+    email = body.email.lower().strip() if body.email else None
     
     if await db.users.find_one({"phone": phone}):
         raise HTTPException(status_code=400, detail="Phone already exists")
@@ -237,7 +237,6 @@ async def create_user(body: RegisterBody, request: Request):
     
     doc = {
         "phone": phone,
-        "email": email,
         "password_hash": authlib.hash_password(pwd),
         "name": body.name,
         "role": body.role if body.role in authlib.ROLES else "staff",
@@ -245,6 +244,8 @@ async def create_user(body: RegisterBody, request: Request):
         "organization_id": user["organization_id"],
         "created_at": now_iso(),
     }
+    if email:
+        doc["email"] = email
     res = await db.users.insert_one(doc)
     doc["_id"] = res.inserted_id
     doc["id"] = str(res.inserted_id)
